@@ -31,7 +31,7 @@ import (
 func TestReconciler_getNeedGCPipeline(t *testing.T) {
 	type args struct {
 		pipelines []spec.Pipeline
-		total     int64
+		total     int
 		err       error
 	}
 
@@ -286,7 +286,7 @@ func TestReconciler_getNeedGCPipeline(t *testing.T) {
 
 		var db *dbclient.Client
 		monkey.PatchInstanceMethod(reflect.TypeOf(db), "PageListPipelines", func(client *dbclient.Client, req apistructs.PipelinePageListRequest, ops ...dbclient.SessionOption) ([]spec.Pipeline, []uint64, int64, int64, error) {
-			return tt.args.pipelines, nil, tt.args.total, 0, tt.args.err
+			return tt.args.pipelines, nil, int(tt.args.total), 0, tt.args.err
 		})
 
 		t.Run(tt.name, func(t *testing.T) {
