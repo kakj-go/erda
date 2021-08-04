@@ -27,8 +27,22 @@ import (
 
 	"github.com/erda-project/erda/pkg/database/sqllint"
 	"github.com/erda-project/erda/pkg/database/sqllint/rules"
-	pygrator2 "github.com/erda-project/erda/pkg/database/sqlparser/pygrator"
+	"github.com/erda-project/erda/pkg/database/sqlparser/pygrator"
 )
+
+type ScriptsParameters interface {
+	// Workdir gets pipeline node workdir
+	Workdir() string
+
+	// MigrationDir gets migration scripts direction from repo, like .dice/migrations or 4.1/sqls
+	MigrationDir() string
+
+	// Modules is the modules for installing.
+	// if is nil, to install all modules in the MigrationDir()
+	Modules() []string
+
+	Rules() []rules.Ruler
+}
 
 // Scripts is the set of Module
 type Scripts struct {
@@ -44,7 +58,7 @@ type Scripts struct {
 }
 
 // NewScripts range the directory
-func NewScripts(parameters Parameters) (*Scripts, error) {
+func NewScripts(parameters ScriptsParameters) (*Scripts, error) {
 	var (
 		modulesNames []string
 		services     = make(map[string]*Module, 0)
@@ -88,7 +102,7 @@ func NewScripts(parameters Parameters) (*Scripts, error) {
 			}
 
 			// read requirements.txt
-			if strings.EqualFold(fileInfo.Name(), pygrator2.RequirementsFilename) {
+			if strings.EqualFold(fileInfo.Name(), pygrator.RequirementsFilename) {
 				module.PythonRequirementsText, err = ioutil.ReadFile(filepath.Join(parameters.Workdir(), parameters.MigrationDir(), moduleInfo.Name(), fileInfo.Name()))
 				if err != nil {
 					return nil, err
@@ -168,7 +182,7 @@ func (s *Scripts) AlterPermissionLint() error {
 				case *ast.AlterTableStmt:
 					tableName := ddl.(*ast.AlterTableStmt).Table.Name.String()
 					if _, ok := tableNames[tableName]; !ok {
-						return errors.Errorf("the table tried to alter not exists, may it not created in this module directory. filename: %s, text:\n%s",
+						return errors.Errorf("the table you tried to alter is not exists, may it not created in this module directory. filename: %s, text:\n%s",
 							filepath.Join(s.Dirname, moduleName, script.GetName()), ddl.Text())
 					}
 				default:
@@ -181,12 +195,11 @@ func (s *Scripts) AlterPermissionLint() error {
 }
 
 func (s *Scripts) MarkPending(tx *gorm.DB) {
-	for moduleName, module := range s.Services {
+	for _, module := range s.Services {
 		for i := range module.Scripts {
 			var record HistoryModel
 			if tx := tx.Where(map[string]interface{}{
-				"service_name": moduleName,
-				"filename":     module.Scripts[i].GetName(),
+				"filename": module.Scripts[i].GetName(),
 			}).
 				First(&record); tx.Error != nil || tx.RowsAffected == 0 {
 				module.Scripts[i].Pending = true
@@ -197,6 +210,10 @@ func (s *Scripts) MarkPending(tx *gorm.DB) {
 		}
 	}
 
+	s.markPending = true
+}
+
+func (s *Scripts) IgnoreMarkPending() {
 	s.markPending = true
 }
 

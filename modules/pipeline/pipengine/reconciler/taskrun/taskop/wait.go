@@ -103,6 +103,15 @@ func (w *wait) WhenDone(data interface{}) error {
 		return nil
 	}
 	endStatus := data.(apistructs.PipelineStatusDesc).Status
+	if endStatus.IsFailedStatus() {
+		if inspect, err := w.Executor.Inspect(w.Ctx, w.Task); err != nil {
+			logrus.Errorf("failed to inspect task, pipelineID:%d, taskID: %d, err: %v", w.P.ID, w.Task.ID, err)
+		} else {
+			if inspect.Desc != "" {
+				_ = w.TaskRun().UpdateTaskInspect(inspect.Desc)
+			}
+		}
+	}
 	w.Task.Status = endStatus
 	w.Task.TimeEnd = time.Now()
 	w.Task.CostTimeSec = costtimeutil.CalculateTaskCostTimeSec(w.Task)

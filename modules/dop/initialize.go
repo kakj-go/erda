@@ -77,7 +77,7 @@ import (
 )
 
 // Initialize 初始化应用启动服务.
-func Initialize() error {
+func (p *provider) Initialize() error {
 	conf.Load()
 	if conf.Debug() {
 		logrus.SetLevel(logrus.DebugLevel)
@@ -93,7 +93,7 @@ func Initialize() error {
 	}
 	defer dbclient.Close()
 
-	ep, err := initEndpoints((*dao.DBClient)(dbclient.DB))
+	ep, err := p.initEndpoints((*dao.DBClient)(dbclient.DB))
 	if err != nil {
 		return err
 	}
@@ -122,6 +122,7 @@ func Initialize() error {
 	logrus.Infof("start the service and listen on address: \"%s\"", conf.ListenAddr())
 
 	interval := time.Duration(conf.TestFileIntervalSec())
+	purgeCycle := conf.TestFileRecordPurgeCycleDay()
 	if err := ep.TestCaseService().BatchClearProcessingRecords(); err != nil {
 		logrus.Error(err)
 		return err
@@ -167,11 +168,11 @@ func Initialize() error {
 
 	// Daily clear test file records
 	go func() {
-		day := time.NewTicker(time.Hour * 24)
+		day := time.NewTicker(time.Hour * 24 * time.Duration(purgeCycle))
 		for {
 			select {
 			case <-day.C:
-				if err := ep.TestCaseService().DeleteRecordApiFilesByTime(time.Now().AddDate(0, 0, -1)); err != nil {
+				if err := ep.TestCaseService().DeleteRecordApiFilesByTime(time.Now().AddDate(0, 0, -purgeCycle)); err != nil {
 					logrus.Error(err)
 				}
 			}
@@ -181,7 +182,7 @@ func Initialize() error {
 	return server.ListenAndServe()
 }
 
-func initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
+func (p *provider) initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
 	var (
 		etcdStore *etcd.Store
 		ossClient *oss.Client
@@ -247,7 +248,7 @@ func initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
 	)
 	testCaseSvc.CreateTestSetFn = testSetSvc.Create
 
-	autotest := autotest.New(autotest.WithDBClient(db), autotest.WithBundle(bdl.Bdl))
+	autotest := autotest.New(autotest.WithDBClient(db), autotest.WithBundle(bdl.Bdl), autotest.WithPipelineCms(p.PipelineCms))
 
 	sceneset := sceneset.New(
 		sceneset.WithDBClient(db),
@@ -259,6 +260,7 @@ func initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
 		atv2.WithBundle(bdl.Bdl),
 		atv2.WithSceneSet(sceneset),
 		atv2.WithAutotestSvc(autotest),
+		atv2.WithPipelineCms(p.PipelineCms),
 	)
 
 	autotestV2.UpdateFileRecord = testCaseSvc.UpdateFileRecord
@@ -380,6 +382,7 @@ func initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
 		nexussvc.WithDBClient(db),
 		nexussvc.WithBundle(bdl.Bdl),
 		nexussvc.WithRsaCrypt(rsaCrypt),
+		nexussvc.WithPipelineCms(p.PipelineCms),
 	)
 
 	// init publisher service
@@ -401,6 +404,7 @@ func initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
 		appcertificate.WithDBClient(db),
 		appcertificate.WithBundle(bdl.Bdl),
 		appcertificate.WithCertificate(cer),
+		appcertificate.WithPipelineCms(p.PipelineCms),
 	)
 
 	libReference := libreference.New(
@@ -420,7 +424,13 @@ func initEndpoints(db *dao.DBClient) (*endpoints.Endpoints, error) {
 	// compose endpoints
 	ep := endpoints.New(
 		endpoints.WithBundle(bdl.Bdl),
-		endpoints.WithPipeline(pipeline.New(pipeline.WithBundle(bdl.Bdl), pipeline.WithBranchRuleSvc(branchRule), pipeline.WithPublisherSvc(pub))),
+		endpoints.WithPipeline(pipeline.New(
+			pipeline.WithBundle(bdl.Bdl),
+			pipeline.WithBranchRuleSvc(branchRule),
+			pipeline.WithPublisherSvc(pub),
+			pipeline.WithPipelineCms(p.PipelineCms),
+		)),
+		endpoints.WithPipelineCms(p.PipelineCms),
 		endpoints.WithEvent(e),
 		endpoints.WithCDP(c),
 		endpoints.WithPermission(perm),
@@ -497,6 +507,21 @@ func registerWebHook(bdl *bundle.Bundle) {
 	}
 	if err := bdl.CreateWebhook(ev); err != nil {
 		logrus.Warnf("failed to register approval status changed event, %v", err)
+	}
+
+	ev = apistructs.CreateHookRequest{
+		Name:   "pipeline_yml_update",
+		Events: []string{bundle.GitPushEvent},
+		URL:    strutil.Concat("http://", discover.DOP(), "/api/cicd-crons/actions/hook-for-update"),
+		Active: true,
+		HookLocation: apistructs.HookLocation{
+			Org:         "-1",
+			Project:     "-1",
+			Application: "-1",
+		},
+	}
+	if err := bdl.CreateWebhook(ev); err != nil {
+		logrus.Warnf("failed to register pipeline yml event, %v", err)
 	}
 }
 

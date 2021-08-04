@@ -34,11 +34,11 @@ func (r *Reconciler) teardownPipeline(ctx context.Context, p *spec.PipelineWithT
 		return
 	}
 	defer closePipelineExitChannel(ctx, p.Pipeline)
-	defer r.doCompensateIfHave(ctx, p.Pipeline.ID)
+	defer r.doCronCompensate(ctx, p.Pipeline.ID)
 	defer r.deleteEtcdWatchKey(context.Background(), p.Pipeline.ID)
 	defer r.teardownPipelines.Delete(p.Pipeline.ID)
 	defer r.waitGC(p.Pipeline.Extra.Namespace, p.Pipeline.ID, p.Pipeline.GetResourceGCTTL())
-	defer r.WaitDBGC(p.Pipeline.ID, *p.Pipeline.Extra.GC.DatabaseGC.Finished.TTLSecond, *p.Pipeline.Extra.GC.DatabaseGC.Finished.NeedArchive)
+	//defer r.WaitDBGC(p.Pipeline.ID, *p.Pipeline.Extra.GC.DatabaseGC.Finished.TTLSecond, *p.Pipeline.Extra.GC.DatabaseGC.Finished.NeedArchive)
 	logrus.Infof("reconciler: begin teardown pipeline, pipelineID: %d", p.Pipeline.ID)
 	defer func() {
 		// // metrics
@@ -85,6 +85,11 @@ func (r *Reconciler) teardownPipeline(ctx context.Context, p *spec.PipelineWithT
 func closePipelineExitChannel(ctx context.Context, p *spec.Pipeline) {
 	rlog.PDebugf(p.ID, "pipeline exit, begin send signal to exit channel to stop other related things")
 	defer rlog.PDebugf(p.ID, "pipeline exit, end send signal to exit channel to stop other related things")
+	defer func() {
+		if err := recover(); err != nil {
+			rlog.PErrorf(p.ID, "pipeline trigger panic, err: %v", err)
+		}
+	}()
 	exitCh, ok := ctx.Value(ctxKeyPipelineExitCh).(chan struct{})
 	if !ok {
 		return

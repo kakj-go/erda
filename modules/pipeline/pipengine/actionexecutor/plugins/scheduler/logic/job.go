@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/erda-project/erda/apistructs"
+	"github.com/erda-project/erda/modules/pipeline/conf"
 	"github.com/erda-project/erda/modules/pipeline/pkg/task_uuid"
 	"github.com/erda-project/erda/modules/pipeline/spec"
 	"github.com/erda-project/erda/pkg/discover"
@@ -114,6 +115,10 @@ func WhichStorageClass(tp string) string {
 	default:
 		return "dice-local-volume"
 	}
+}
+
+func MakeJobName(task *spec.PipelineTask) string {
+	return strutil.Concat(task.Extra.Namespace, ".", task_uuid.MakeJobID(task))
 }
 
 func TransferToSchedulerJob(task *spec.PipelineTask) (job apistructs.JobFromUser, err error) {
@@ -237,4 +242,19 @@ func GetCLusterInfo(clusterName string) (map[string]string, error) {
 	}
 
 	return clusterInfoRes.Data, nil
+}
+
+// GetPullImagePolicy specify Image Pull Policy with IfNotPresent,Always,Never
+func GetPullImagePolicy() corev1.PullPolicy {
+	var imagePullPolicy corev1.PullPolicy
+	switch corev1.PullPolicy(conf.SpecifyImagePullPolicy()) {
+	case corev1.PullAlways:
+		imagePullPolicy = corev1.PullAlways
+	case corev1.PullNever:
+		imagePullPolicy = corev1.PullNever
+	default:
+		imagePullPolicy = corev1.PullIfNotPresent
+	}
+
+	return imagePullPolicy
 }

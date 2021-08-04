@@ -19,9 +19,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/pingcap/errors"
+	"github.com/sirupsen/logrus"
 
 	"github.com/erda-project/erda/apistructs"
 	protocol "github.com/erda-project/erda/modules/openapi/component-protocol"
@@ -195,7 +194,7 @@ LABEL:
 		// 	cfgChildren2 = append(cfgChildren2, Input{Label: k, Value: "{{" + k + "}}", IsLeaf: true})
 		// }
 		for _, v := range cfg.APIConfig.Global {
-			cfgChildren3 = append(cfgChildren3, Input{Label: v.Name, Value: expression.GenConfigParams(v.Name), IsLeaf: true})
+			cfgChildren3 = append(cfgChildren3, Input{Label: v.Name, Value: expression.GenAutotestConfigParams(v.Name), IsLeaf: true})
 		}
 		// cfgChildren1 = append(cfgChildren1, Input{Label: "Header", Value: "Header", IsLeaf: false, Children: cfgChildren2})
 		cfgChildren1 = append(cfgChildren1, Input{Label: "Global", Value: "Global", IsLeaf: false, Children: cfgChildren3})
@@ -346,6 +345,6 @@ LABEL:
 		return err
 	}
 	apiInfo.APIInfo.Name = step.Name
-	c.State["data"] = map[string]interface{}{"apiSpec": apiInfo.APIInfo, "apiSpecId": step.APISpecID}
+	c.State["data"] = map[string]interface{}{"apiSpec": apiInfo.APIInfo, "apiSpecId": step.APISpecID, "loop": apiInfo.Loop}
 	return nil
 }

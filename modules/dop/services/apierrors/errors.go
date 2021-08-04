@@ -117,6 +117,7 @@ var (
 	ErrGetProject = err("ErrGetProject", "获取项目失败")
 
 	ErrCreatePipeline         = err("ErrCreatePipeline", "创建流水线失败")
+	ErrUpdatePipeline         = err("ErrUpdatePipeline", "修改流水线失败")
 	ErrListPipeline           = err("ErrListPipeline", "获取流水线列表失败")
 	ErrListPipelineYml        = err("ErrListPipelineYml", "获取流水线配置列表失败")
 	ErrListInvokedCombos      = err("ErrListInvokedCombos", "获取流水线侧边栏信息失败")
@@ -472,6 +473,10 @@ var (
 	ErrDeletePublisher = err("ErrDeletePublisher", "删除Publisher失败")
 	ErrGetPublisher    = err("ErrGetPublisher", "获取Publisher失败")
 	ErrListPublisher   = err("ErrListPublisher", "获取Publisher列表失败")
+
+	ErrParallelRunPipeline = err("ErrParallelRunPipeline", "已有流水线正在运行中")
+
+	ErrListFileRecords = err("ErrListFileRecords", "failed to list file records")
 )
 
 func err(template, defaultValue string) *errorresp.APIError {

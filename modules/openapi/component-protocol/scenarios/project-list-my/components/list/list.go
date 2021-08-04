@@ -58,7 +58,7 @@ func RenItem(pro apistructs.ProjectDTO, orgDomain string) (ProItem, error) {
 			Target: "project",
 		},
 	}
-	//opManage := Operation{
+	//opManage := GenerateOperation{
 	//	Key:    apistructs.ListProjectToManageOperationKey.String(),
 	//	Reload: false,
 	//	Text:   "管理",
@@ -92,7 +92,7 @@ func RenItem(pro apistructs.ProjectDTO, orgDomain string) (ProItem, error) {
 		ProjectId:   pro.ID,
 		Title:       pro.DisplayName,
 		Description: pro.Desc,
-		PrefixImg:   "/images/default-project-icon.png",
+		PrefixImg:   "frontImg_default_project_icon",
 		ExtraInfos: []ExtraInfos{
 			map[bool]ExtraInfos{
 				true: {

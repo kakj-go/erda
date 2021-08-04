@@ -58,7 +58,7 @@ func (k *Kubernetes) GetInClusterClient() (*kubernetes.Clientset, error) {
 }
 
 func (k *Kubernetes) CreateClient(clusterName string) error {
-	nClient, err := k8sclient.New(clusterName)
+	nClient, err := k8sclient.NewWithTimeOut(clusterName, defaultTimeout)
 	if err != nil {
 		return err
 	}
@@ -87,6 +87,8 @@ func (k *Kubernetes) UpdateClient(clusterName string) error {
 }
 
 func (k *Kubernetes) RemoveClient(clusterName string) {
+	k.Lock()
+	defer k.Unlock()
 	delete(k.clients, clusterName)
 }
 

@@ -26,7 +26,6 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/erda-project/erda/apistructs"
-	"github.com/erda-project/erda/modules/cmp/conf"
 	"github.com/erda-project/erda/pkg/strutil"
 )
 
@@ -59,6 +58,7 @@ func (c *Clusters) ClusterInfo(ctx context.Context, orgID uint64, clusterNames [
 		baseInfo := map[string]apistructs.NameValue{
 			"manageType":         {Name: i18n.Sprintf("manage type"), Value: parseManageType(clusterMetaData.ManageConfig)},
 			"clusterName":        {Name: i18n.Sprintf("cluster name"), Value: clusterName},
+			"clusterDisplayName": {Name: i18n.Sprintf("cluster display name"), Value: clusterMetaData.DisplayName},
 			"initJobClusterName": {Name: i18n.Sprintf("init job cluster name"), Value: os.Getenv("DICE_CLUSTER_NAME")},
 		}
 
@@ -95,7 +95,7 @@ func (c *Clusters) ClusterInfo(ctx context.Context, orgID uint64, clusterNames [
 		if err != nil {
 			logrus.Error(err)
 		} else {
-			pod, err := cs.CoreV1().Pods(conf.ErdaNamespace()).List(context.Background(), metav1.ListOptions{
+			pod, err := cs.CoreV1().Pods(getPlatformNamespace()).List(context.Background(), metav1.ListOptions{
 				LabelSelector: labels.Set(map[string]string{"job-name": generateInitJobName(orgID, clusterName)}).String(),
 			})
 			if err == nil {
@@ -216,4 +216,13 @@ func parseManageType(mc *apistructs.ManageConfig) string {
 	default:
 		return "create"
 	}
+}
+
+func getPlatformNamespace() string {
+	diceNs := os.Getenv("DICE_NAMESPACE")
+	if diceNs == "" {
+		diceNs = metav1.NamespaceDefault
+	}
+
+	return diceNs
 }

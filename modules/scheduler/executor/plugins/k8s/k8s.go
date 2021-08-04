@@ -16,11 +16,12 @@ package k8s
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
+
+	appsv1 "k8s.io/api/apps/v1"
 
 	"github.com/mohae/deepcopy"
 	"github.com/pkg/errors"
@@ -124,9 +125,6 @@ func init() {
 		bdl := bundle.New(bundle.WithCoreServices())
 		syncer := instanceinfosync.NewSyncer(clustername, k.addr, dbclient, bdl, k.pod, k.sts, k.deploy, k.event)
 
-		if options["IS_EDAS"] == "true" {
-			return k, nil
-		}
 		parentctx, cancelSyncInstanceinfo := context.WithCancel(context.Background())
 		k.instanceinfoSyncCancelFunc = cancelSyncInstanceinfo
 
@@ -271,66 +269,6 @@ func getIstioEngine(info apistructs.ClusterInfoData) (istioctl.IstioEngine, erro
 	return localEngine, nil
 }
 
-// GetClient get http client with cluster info.
-func GetClient(clusterName string, manageConfig *apistructs.ManageConfig) (string, *httpclient.HTTPClient, error) {
-	inetPortal := "inet://"
-
-	hcOptions := []httpclient.OpOption{
-		httpclient.WithHTTPS(),
-	}
-
-	// check mange config type
-	switch manageConfig.Type {
-	case apistructs.ManageProxy, apistructs.ManageToken:
-		// cluster-agent -> (register) cluster-dialer -> (patch) cluster-manager
-		// -> (update) eventBox -> (update) scheduler -> scheduler reload executor
-		if manageConfig.Token == "" || manageConfig.Address == "" {
-			return "", nil, fmt.Errorf("token or address is empty")
-		}
-
-		hc := httpclient.New(hcOptions...)
-		hc.BearerTokenAuth(manageConfig.Token)
-
-		if manageConfig.Type == apistructs.ManageToken {
-			return manageConfig.Address, hc, nil
-		}
-
-		// parseInetAddr parse inet addr, will add proxy header in custom http request
-		return fmt.Sprintf("%s%s/%s", inetPortal, clusterName, manageConfig.Address), hc, nil
-	case apistructs.ManageCert:
-		if len(manageConfig.KeyData) == 0 ||
-			len(manageConfig.CertData) == 0 {
-			return "", nil, fmt.Errorf("cert or key is empty")
-		}
-
-		certBase64, err := base64.StdEncoding.DecodeString(manageConfig.CertData)
-		if err != nil {
-			return "", nil, err
-		}
-		keyBase64, err := base64.StdEncoding.DecodeString(manageConfig.KeyData)
-		if err != nil {
-			return "", nil, err
-		}
-
-		var certOption httpclient.OpOption
-
-		certOption = httpclient.WithHttpsCertFromJSON(certBase64, keyBase64, nil)
-
-		if len(manageConfig.CaData) != 0 {
-			caBase64, err := base64.StdEncoding.DecodeString(manageConfig.CaData)
-			if err != nil {
-				return "", nil, err
-			}
-			certOption = httpclient.WithHttpsCertFromJSON(certBase64, keyBase64, caBase64)
-		}
-		hcOptions = append(hcOptions, certOption)
-
-		return manageConfig.Address, httpclient.New(hcOptions...), nil
-	default:
-		return "", nil, fmt.Errorf("manage type is not support")
-	}
-}
-
 // New new kubernetes executor struct
 func New(name executortypes.Name, clusterName string, options map[string]string) (*Kubernetes, error) {
 	// get cluster from cluster manager
@@ -346,7 +284,7 @@ func New(name executortypes.Name, clusterName string, options map[string]string)
 		return nil, fmt.Errorf("cluster %s manage config is nil", clusterName)
 	}
 
-	addr, client, err := GetClient(clusterName, cluster.ManageConfig)
+	addr, client, err := util.GetClient(clusterName, cluster.ManageConfig)
 	if err != nil {
 		logrus.Errorf("cluster %s get http client and addr error: %v", clusterName, err)
 		return nil, err
@@ -934,7 +872,12 @@ func (k *Kubernetes) updateOneByOne(sg *apistructs.ServiceGroup) error {
 }
 
 func (k *Kubernetes) getStatelessStatus(ctx context.Context, sg *apistructs.ServiceGroup) (apistructs.StatusDesc, error) {
-	var resultStatus apistructs.StatusDesc
+	var (
+		resultStatus apistructs.StatusDesc
+		deploys      []appsv1.Deployment
+		dsMap        map[string]appsv1.DaemonSet
+		err          error
+	)
 	// init "unknown" status for each service
 	for i := range sg.Services {
 		sg.Services[i].Status = apistructs.StatusUnknown
@@ -947,6 +890,60 @@ func (k *Kubernetes) getStatelessStatus(ctx context.Context, sg *apistructs.Serv
 		k.setProjectServiceName(sg)
 	}
 	isReady := true
+
+	if sg.ProjectNamespace != "" {
+		deployList, err := k.deploy.List(ns, map[string]string{
+			LabelServiceGroupID: sg.ID,
+		})
+		if err != nil {
+			return apistructs.StatusDesc{}, fmt.Errorf("list deploy in ns %s err: %v", ns, err)
+		}
+		deploys = deployList.Items
+
+		daemonsetExist := false
+
+		for _, svc := range sg.Services {
+			if svc.WorkLoad == ServicePerNode {
+				daemonsetExist = true
+				break
+			}
+		}
+		if daemonsetExist {
+			daemonsets, err := k.ds.List(ns, map[string]string{
+				LabelServiceGroupID: sg.ID,
+			})
+			if err != nil {
+				return apistructs.StatusDesc{}, fmt.Errorf("list daemonset in ns %s err: %v", ns, err)
+			}
+
+			dsMap = make(map[string]appsv1.DaemonSet, len(daemonsets.Items))
+			for _, ds := range daemonsets.Items {
+				dsMap[ds.Name] = ds
+			}
+		}
+
+	} else {
+		for _, svc := range sg.Services {
+			deployList, err := k.deploy.List(ns, map[string]string{
+				"app": svc.Name,
+			})
+			if err != nil {
+				return apistructs.StatusDesc{}, fmt.Errorf("list deploy in ns %s err: %v", ns, err)
+			}
+			deploys = append(deploys, deployList.Items...)
+		}
+	}
+
+	deployMap := make(map[string]appsv1.Deployment, len(deploys))
+	for _, deploy := range deploys {
+		deployMap[deploy.Name] = deploy
+	}
+
+	pods, err := k.pod.ListNamespacePods(ns)
+	if err != nil {
+		return apistructs.StatusDesc{}, err
+	}
+
 	for i := range sg.Services {
 		var (
 			status apistructs.StatusDesc
@@ -954,12 +951,12 @@ func (k *Kubernetes) getStatelessStatus(ctx context.Context, sg *apistructs.Serv
 		)
 		switch sg.Services[i].WorkLoad {
 		case ServicePerNode:
-			status, err = k.getDaemonSetStatus(&sg.Services[i])
+			status, err = k.getDaemonSetStatusFromMap(&sg.Services[i], dsMap)
 		default:
 			// To distinguish the following exceptions：
 			// 1, An error occurred during the creation process, and the entire runtime is deleted and then come back to query
 			// 2, Others
-			status, err = k.getDeploymentStatus(&sg.Services[i])
+			status, err = k.getDeploymentStatusFromMap(&sg.Services[i], deployMap)
 		}
 		if err != nil {
 			// TODO: the state can be chanded to "Error"..
@@ -993,7 +990,7 @@ func (k *Kubernetes) getStatelessStatus(ctx context.Context, sg *apistructs.Serv
 			isReady = false
 			resultStatus.Status = apistructs.StatusProgressing
 			sg.Services[i].Status = apistructs.StatusProgressing
-			podstatuses, err := k.pod.GetNamespacedPodsStatus(sg.Services[i].Namespace)
+			podstatuses, err := k.pod.GetNamespacedPodsStatus(pods.Items)
 			if err != nil {
 				logrus.Errorf("failed to get pod unready reasons, namespace: %v, name: %s, %v",
 					sg.Services[i].Namespace,

@@ -14,6 +14,8 @@
 package apistructs
 
 import (
+	"net/url"
+	"strconv"
 	"time"
 )
 
@@ -82,6 +84,20 @@ type ListTestFileRecordsRequest struct {
 	Locale    string           `json:"locale"`
 }
 
+func (r ListTestFileRecordsRequest) ConvertToQueryParams() url.Values {
+	values := make(url.Values)
+	if r.ProjectID != 0 {
+		values.Add("projectID", strconv.FormatInt(int64(r.ProjectID), 10))
+	}
+	if r.Locale != "" {
+		values.Add("locale", r.Locale)
+	}
+	for _, fileType := range r.Types {
+		values.Add("types", string(fileType))
+	}
+	return values
+}
+
 type GetTestFileRecordResponse struct {
 	Header
 	Data TestFileRecord
@@ -89,5 +105,10 @@ type GetTestFileRecordResponse struct {
 
 type ListTestFileRecordsResponse struct {
 	Header
-	Data []TestFileRecord
+	Data *ListTestFileRecordsResponseData
+}
+
+type ListTestFileRecordsResponseData struct {
+	Counter map[string]int   `json:"counter"`
+	List    []TestFileRecord `json:"list"`
 }

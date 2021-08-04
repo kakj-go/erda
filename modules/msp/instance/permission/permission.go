@@ -29,76 +29,128 @@ import (
 
 // Interface .
 type Interface interface {
-	TenantToProjectID(tgroup, tenant string) permission.ValueGetter
+	TenantToProjectID(tgroup, tenantID string) permission.ValueGetter
 	TerminusKeyToProjectID(key string) permission.ValueGetter
 	TerminusKeyToProjectIDForHTTP(keys ...string) httpperm.ValueGetter
 }
 
 // TenantToProjectID .
-func (p *provider) TenantToProjectID(tgroup, tenant string) permission.ValueGetter {
+func (p *provider) TenantToProjectID(tgroup, tenantID string) permission.ValueGetter {
 	groupGetter := permission.FieldValue(tgroup)
-	tenantGetter := permission.FieldValue(tenant)
+	tenantGetter := permission.FieldValue(tenantID)
 	return func(ctx context.Context, req interface{}) (string, error) {
-		if len(tgroup) > 0 {
-			group, err := groupGetter(ctx, req)
-			if err == nil && len(group) > 0 {
-				return p.getProjectIDByGroupID(group)
+		tg, _ := groupGetter(ctx, req)
+		tID, _ := tenantGetter(ctx, req)
+		idByTg, _ := p.getProjectIDByGroupIDOrTenantID(tg)
+		if idByTg == "" {
+			idByTID, err := p.getProjectIDByGroupIDOrTenantID(tID)
+			if err != nil {
+				return "", err
 			}
+			return idByTID, nil
 		}
-		id, err := tenantGetter(ctx, req)
-		if err != nil {
-			return "", err
-		}
-		return p.getProjectIDByTenantID(id)
+		return idByTg, nil
 	}
 }
 
-func (p *provider) getProjectIDByTenantID(id string) (string, error) {
-	tenant, err := p.instanceTenantDB.GetByID(id)
-	if err != nil {
-		return "", errors.NewDataBaseError(err)
+func (p *provider) getProjectIDByGroupIDOrTenantID(id string) (string, error) {
+	projectID, _ := p.getProjectIDByGroupID(id)
+	if projectID == "" {
+		return p.getProjectIDByTenantID(id)
 	}
-	if tenant == nil {
-		return "", fmt.Errorf("fail to find tenant by id %q", id)
-	}
-
-	return p.getProjectIDByTenant(tenant)
+	return projectID, nil
 }
 
 func (p *provider) getProjectIDByGroupID(group string) (string, error) {
+	id, err := p.getProjectIdByMSPTenantID(group)
+	if err != nil {
+		return "", errors.NewDatabaseError(err)
+	}
+	if id != "" {
+		return id, nil
+	}
+
 	tenants, err := p.instanceTenantDB.GetByTenantGroup(group)
 	if err != nil {
-		return "", errors.NewDataBaseError(err)
+		return "", errors.NewDatabaseError(err)
 	}
 	if len(tenants) <= 0 {
-		return "", fmt.Errorf("tenant group %q not found", group)
+		return "", errors.NewNotFoundError(group)
 	}
 	for _, tenant := range tenants {
 		tmc, err := p.tmcDB.GetByEngine(tenant.Engine)
 		if err != nil {
-			return "", errors.NewDataBaseError(err)
+			return "", errors.NewDatabaseError(err)
 		}
 		if tmc == nil {
 			continue
 		}
 		if strings.EqualFold(tmc.ServiceType, string(instance.ServiceTypeMicroService)) {
-			return p.getProjectIDByTenant(tenant)
+			id := p.getProjectIDByTenant(tenant)
+			if len(id) > 0 {
+				return id, nil
+			}
 		}
 	}
-	return "", fmt.Errorf("tenant not found from group %q", group)
+	return "", errors.NewNotFoundError(group)
 }
 
-func (p *provider) getProjectIDByTenant(tenant *instancedb.InstanceTenant) (string, error) {
+func (p *provider) getProjectIDByTenantID(id string) (string, error) {
+	id, err := p.getProjectIdByMSPTenantID(id)
+	if err != nil {
+		return "", errors.NewDatabaseError(err)
+	}
+	if id != "" {
+		return id, nil
+	}
+
+	tenants, err := p.instanceTenantDB.GetByTenantGroup(id)
+	if err != nil {
+		return "", errors.NewDatabaseError(err)
+	}
+	if len(tenants) <= 0 {
+		return "", errors.NewNotFoundError(id)
+	}
+	for _, tenant := range tenants {
+		tmc, err := p.tmcDB.GetByEngine(tenant.Engine)
+		if err != nil {
+			return "", errors.NewDatabaseError(err)
+		}
+		if tmc == nil {
+			continue
+		}
+		if strings.EqualFold(tmc.ServiceType, string(instance.ServiceTypeMicroService)) {
+			id := p.getProjectIDByTenant(tenant)
+			if len(id) > 0 {
+				return id, nil
+			}
+		}
+	}
+	return "", errors.NewNotFoundError(id)
+}
+
+func (p *provider) getProjectIdByMSPTenantID(id string) (string, error) {
+	mspTenant, err := p.MSPTenantDB.QueryTenant(id)
+	if err != nil {
+		return "", err
+	}
+	if mspTenant != nil {
+		return mspTenant.RelatedProjectId, nil
+	}
+	return "", nil
+}
+
+func (p *provider) getProjectIDByTenant(tenant *instancedb.InstanceTenant) string {
 	if len(tenant.Options) <= 0 {
-		return "", fmt.Errorf("fail to find project id by tenant %q", tenant.ID)
+		return ""
 	}
 	options := make(map[string]interface{})
 	json.Unmarshal([]byte(tenant.Options), &options)
 	pid := options["projectId"]
 	if pid == nil {
-		return "", fmt.Errorf("fail to find project id by tenant %q", tenant.ID)
+		return ""
 	}
-	return fmt.Sprint(pid), nil
+	return fmt.Sprint(pid)
 }
 
 func (p *provider) TerminusKeyToProjectID(terminusKey string) permission.ValueGetter {
@@ -110,7 +162,7 @@ func (p *provider) TerminusKeyToProjectID(terminusKey string) permission.ValueGe
 		}
 		m, err := p.monitorDB.GetByTerminusKey(tk)
 		if err != nil {
-			return "", errors.NewDataBaseError(err)
+			return "", errors.NewDatabaseError(err)
 		}
 		return m.ProjectId, nil
 	}
@@ -124,6 +176,14 @@ func (p *provider) TerminusKeyToProjectIDForHTTP(keys ...string) httpperm.ValueG
 			if len(key) <= 0 {
 				continue
 			}
+			id, err := p.getProjectIdByMSPTenantID(key)
+			if err != nil {
+				return "", errors.NewDatabaseError(err)
+			}
+			if id != "" {
+				return id, nil
+			}
+
 			m, err := p.monitorDB.GetByTerminusKey(key)
 			if err != nil {
 				return "", fmt.Errorf("fail to get monitor: %s", err)

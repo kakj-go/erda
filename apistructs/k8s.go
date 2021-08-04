@@ -13,6 +13,18 @@
 
 package apistructs
 
+import (
+	corev1 "k8s.io/api/core/v1"
+)
+
 const (
 	AliyunRegistry = "aliyun-registry"
 )
+
+// TaskInspect inspect k8s job, like kubectl describe
+// contains task object and events
+type TaskInspect struct {
+	Object interface{}       `json:"object"`
+	Events *corev1.EventList `json:"events"`
+	Desc   string            `json:"desc"`
+}

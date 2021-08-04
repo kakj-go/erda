@@ -18,7 +18,11 @@ import (
 	"github.com/erda-project/erda/pkg/common"
 
 	// providers and modules
+	_ "github.com/erda-project/erda-infra/providers"
 	_ "github.com/erda-project/erda/modules/dicehub"
+	_ "github.com/erda-project/erda/modules/dicehub/extension"
+	_ "github.com/erda-project/erda/modules/dicehub/image"
+	_ "github.com/erda-project/erda/modules/dicehub/release"
 )
 
 func main() {

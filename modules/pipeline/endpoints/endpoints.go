@@ -26,7 +26,6 @@ import (
 	"github.com/erda-project/erda/modules/pipeline/services/appsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/buildartifactsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/buildcachesvc"
-	"github.com/erda-project/erda/modules/pipeline/services/cmsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/crondsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/extmarketsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/permissionsvc"
@@ -44,7 +43,6 @@ type Endpoints struct {
 	pipelineCronSvc  *pipelinecronsvc.PipelineCronSvc
 	pipelineSvc      *pipelinesvc.PipelineSvc
 	crondSvc         *crondsvc.CrondSvc
-	cmSvc            *cmsvc.CMSvc
 	buildArtifactSvc *buildartifactsvc.BuildArtifactSvc
 	buildCacheSvc    *buildcachesvc.BuildCacheSvc
 	actionAgentSvc   *actionagentsvc.ActionAgentSvc
@@ -80,12 +78,6 @@ func WithDBClient(dbClient *dbclient.Client) Option {
 func WithAppSvc(svc *appsvc.AppSvc) Option {
 	return func(e *Endpoints) {
 		e.appSvc = svc
-	}
-}
-
-func WithCMSvc(svc *cmsvc.CMSvc) Option {
-	return func(e *Endpoints) {
-		e.cmSvc = svc
 	}
 }
 
@@ -189,13 +181,6 @@ func (e *Endpoints) Routes() []httpserver.Endpoint {
 		{Path: "/api/pipelines/{pipelineID}/tasks/{taskID}", Method: http.MethodGet, Handler: e.pipelineTaskDetail},
 		{Path: "/api/pipelines/{pipelineID}/tasks/{taskID}/actions/get-bootstrap-info", Method: http.MethodGet, Handler: e.taskBootstrapInfo},
 
-		// cms
-		{Path: "/api/pipelines/cms/ns", Method: http.MethodPost, Handler: e.createCmsNs},
-		{Path: "/api/pipelines/cms/ns", Method: http.MethodGet, Handler: e.listCmsNs},
-		{Path: "/api/pipelines/cms/ns/{ns}", Method: http.MethodPost, Handler: e.updateCmsNsConfigs},
-		{Path: "/api/pipelines/cms/ns/{ns}", Method: http.MethodDelete, Handler: e.deleteCmsNsConfigs},
-		{Path: "/api/pipelines/cms/ns/{ns}", Method: http.MethodGet, Handler: e.getCmsNsConfigs},
-
 		// pipeline related actions
 		{Path: "/api/pipelines/actions/batch-create", Method: http.MethodPost, Handler: e.pipelineBatchCreate},
 		{Path: "/api/pipelines/actions/pipeline-yml-graph", Method: http.MethodPost, Handler: e.pipelineYmlGraph},
@@ -209,6 +194,7 @@ func (e *Endpoints) Routes() []httpserver.Endpoint {
 		{Path: "/api/pipeline-crons", Method: http.MethodPost, Handler: e.pipelineCronCreate},
 		{Path: "/api/pipeline-crons/{cronID}", Method: http.MethodDelete, Handler: e.pipelineCronDelete},
 		{Path: "/api/pipeline-crons/{cronID}", Method: http.MethodGet, Handler: e.pipelineCronGet},
+		{Path: "/api/pipeline-crons/{cronID}", Method: http.MethodPut, Handler: e.pipelineCronUpdate},
 
 		// pipeline queue management
 		{Path: "/api/pipeline-queues", Method: http.MethodPost, Handler: e.createPipelineQueue},
@@ -216,6 +202,7 @@ func (e *Endpoints) Routes() []httpserver.Endpoint {
 		{Path: "/api/pipeline-queues", Method: http.MethodGet, Handler: e.pagingPipelineQueues},
 		{Path: "/api/pipeline-queues/{queueID}", Method: http.MethodPut, Handler: e.updatePipelineQueue},
 		{Path: "/api/pipeline-queues/{queueID}", Method: http.MethodDelete, Handler: e.deletePipelineQueue},
+		{Path: "/api/pipeline-queues/actions/batch-upgrade-pipeline-priority", Method: http.MethodPut, Handler: e.batchUpgradePipelinePriority},
 
 		// build artifact
 		{Path: "/api/build-artifacts/{sha}", Method: http.MethodGet, Handler: e.queryBuildArtifact},
@@ -241,5 +228,9 @@ func (e *Endpoints) Routes() []httpserver.Endpoint {
 
 		// cluster info
 		{Path: clusterinfo.ClusterHookApiPath, Method: http.MethodPost, Handler: e.clusterHook},
+
+		// executor info, only for internal check executor and cluster info
+		{Path: "/api/pipeline-executors", Method: http.MethodGet, Handler: e.executorInfos},
+		{Path: "/api/pipeline-executors/actions/refresh", Method: http.MethodPut, Handler: e.triggerRefreshExecutors},
 	}
 }

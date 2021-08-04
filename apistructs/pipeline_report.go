@@ -22,6 +22,7 @@ import (
 
 const (
 	PipelineReportEventMetaKey = "event"
+	PipelineReportLoopMetaKey  = "task-loop"
 )
 
 // PipelineReportSet 流水线报告集，一条流水线可能会有多个报告，称为报告集
@@ -49,6 +50,7 @@ var (
 	PipelineReportTypeBasic   PipelineReportType = "basic"
 	PipelineReportTypeAPITest PipelineReportType = "api-test"
 	PipelineReportTypeEvent   PipelineReportType = "event"
+	PipelineReportTypeInspect PipelineReportType = "task-inspect"
 )
 
 // PipelineReportMeta 流水线报告元数据，前端根据该数据拼装报告详情界面

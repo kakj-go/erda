@@ -21,12 +21,8 @@ import (
 	"net/url"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"time"
-
-	"github.com/gorilla/schema"
-	"github.com/pkg/errors"
-	"github.com/sirupsen/logrus"
-	"gopkg.in/yaml.v3"
 
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/bundle"
@@ -41,6 +37,11 @@ import (
 	"github.com/erda-project/erda/modules/pkg/user"
 	"github.com/erda-project/erda/pkg/parser/diceyml"
 	"github.com/erda-project/erda/pkg/strutil"
+
+	"github.com/gorilla/schema"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"gopkg.in/yaml.v3"
 )
 
 // Runtime 应用实例对象封装
@@ -105,12 +106,12 @@ func (r *Runtime) CreateByReleaseIDPipeline(orgid uint64, operator user.ID, rele
 	branch := releaseResp.Labels["gitBranch"]
 
 	// check if there is a runtime already being created by release
-	rts, err := utils.FindCreatingRuntimesByRelease(uint64(releaseReq.ApplicationID), workspaces[0],
+	pipelines, err := utils.FindCRBRRunningPipeline(uint64(releaseReq.ApplicationID), workspaces[0],
 		fmt.Sprintf("dice-deploy-release-%s", branch), r.bdl)
 	if err != nil {
 		return apistructs.RuntimeReleaseCreatePipelineResponse{}, err
 	}
-	if len(rts) != 0 {
+	if len(pipelines) != 0 {
 		return apistructs.RuntimeReleaseCreatePipelineResponse{},
 			errors.Errorf("There is already a runtime created by releaseID %s, please do not repeat deployment", releaseReq.ReleaseID)
 	}
@@ -163,10 +164,11 @@ func (r *Runtime) CreateByReleaseIDPipeline(orgid uint64, operator user.ID, rele
 			apistructs.LabelAppName:       app.Name,
 			apistructs.LabelProjectName:   app.ProjectName,
 		},
-		PipelineYmlName: fmt.Sprintf("dice-deploy-release-%s", branch),
-		ClusterName:     releaseResp.ClusterName,
-		PipelineSource:  apistructs.PipelineSourceDice,
-		AutoRunAtOnce:   true,
+		PipelineYmlName: fmt.Sprintf("dice-deploy-release-%s-%d-%s", releaseReq.Workspace,
+			releaseReq.ApplicationID, branch),
+		ClusterName:    releaseResp.ClusterName,
+		PipelineSource: apistructs.PipelineSourceDice,
+		AutoRunAtOnce:  true,
 	})
 	if err != nil {
 		return apistructs.RuntimeReleaseCreatePipelineResponse{}, err
@@ -1228,7 +1230,7 @@ func (r *Runtime) List(userID user.ID, orgID uint64, appID uint64, workspace, na
 	}
 
 	// check four env perm
-	rtEnvPermMark := make(map[string]*apistructs.WorkspaceRuntimeInfo)
+	rtEnvPermBranchMark := make(map[string][]string)
 	anyPerm := false
 	for _, env := range []string{"dev", "test", "staging", "prod"} {
 		perm, err := r.bdl.CheckPermission(&apistructs.PermissionCheckRequest{
@@ -1242,7 +1244,7 @@ func (r *Runtime) List(userID user.ID, orgID uint64, appID uint64, workspace, na
 			return nil, apierrors.ErrGetRuntime.InternalError(err)
 		}
 		if perm.Access {
-			rtEnvPermMark[env] = &apistructs.WorkspaceRuntimeInfo{HavePermission: true}
+			rtEnvPermBranchMark[env] = []string{}
 			anyPerm = true
 		}
 	}
@@ -1257,10 +1259,14 @@ func (r *Runtime) List(userID user.ID, orgID uint64, appID uint64, workspace, na
 			continue
 		}
 		env := strutil.ToLower(runtime.Workspace)
-		if _, exists := rtEnvPermMark[env]; !exists {
-			rtEnvPermMark[env].HaveRuntime = false
+		// If the user does not have the permission of this environment,
+		// the runtime data in this environment will not be returned
+		if _, exists := rtEnvPermBranchMark[env]; !exists {
 			continue
 		}
+		// record all runtime's branchs in each environment
+		rtEnvPermBranchMark[env] = append(rtEnvPermBranchMark[env], runtime.GitBranch)
+
 		deployment, err := r.db.FindLastDeployment(runtime.ID)
 		if err != nil {
 			logrus.Errorf("[alert] failed to build summary item, runtime %v get last deployment failed, err: %v",
@@ -1322,15 +1328,11 @@ func (r *Runtime) List(userID user.ID, orgID uint64, appID uint64, workspace, na
 	// It takes some time to initialize and run the pipeline when creating a runtime
 	// through the release, but we should let users know that thisruntime is being created.
 	if len(workspace) == 0 && len(name) == 0 {
-		for env := range rtEnvPermMark {
-			if !rtEnvPermMark[env].HaveRuntime {
-				creatingRTs, err := utils.FindCreatingRuntimesByRelease(appID, env, "", r.bdl)
-				if err != nil {
-					return nil, err
-				}
-				data = append(data, creatingRTs...)
-			}
+		creatingRTs, err := utils.FindCreatingRuntimesByRelease(appID, rtEnvPermBranchMark, "", r.bdl)
+		if err != nil {
+			return nil, err
 		}
+		data = append(data, creatingRTs...)
 	}
 
 	return data, nil
@@ -1688,7 +1690,12 @@ func (r *Runtime) FullGC() {
 		}
 	}()
 
-	keep := 5
+	rollbackCfg, err := r.getRollbackConfig()
+	if err != nil {
+		logrus.Errorf("[alert] failed to get all rollback config: %v", err)
+		return
+	}
+
 	bulk := 100
 	lastRuntimeID := uint64(0)
 	for {
@@ -1698,11 +1705,11 @@ func (r *Runtime) FullGC() {
 			break
 		}
 		for i := range runtimes {
-			if runtimes[i].Workspace == string(apistructs.ProdWorkspace) {
-				r.fullGCForSingleRuntime(runtimes[i].ID, keep)
-			} else {
-				r.fullGCForSingleRuntime(runtimes[i].ID, 1)
+			keep, ok := rollbackCfg[runtimes[i].ProjectID][strings.ToUpper(runtimes[i].Workspace)]
+			if !ok || keep <= 0 || keep > 100 {
+				keep = 5
 			}
+			r.fullGCForSingleRuntime(runtimes[i].ID, keep)
 		}
 		if len(runtimes) < bulk {
 			// ended
@@ -1710,6 +1717,21 @@ func (r *Runtime) FullGC() {
 		}
 		lastRuntimeID = runtimes[len(runtimes)-1].ID
 	}
+}
+
+// getRollbackConfig return the number of rollback record for each project and workspace
+// key1: project_id, key2: workspace, value: the limit of rollback record
+func (r *Runtime) getRollbackConfig() (map[uint64]map[string]int, error) {
+	result := make(map[uint64]map[string]int, 0)
+	// TODO: use cache to get project info
+	projects, err := r.bdl.GetAllProjects()
+	if err != nil {
+		return nil, err
+	}
+	for _, prj := range projects {
+		result[prj.ID] = prj.RollbackConfig
+	}
+	return result, nil
 }
 
 func (r *Runtime) fullGCForSingleRuntime(runtimeID uint64, keep int) {

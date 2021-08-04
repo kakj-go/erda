@@ -38,7 +38,6 @@ import (
 	"github.com/erda-project/erda/modules/pipeline/services/appsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/buildartifactsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/buildcachesvc"
-	"github.com/erda-project/erda/modules/pipeline/services/cmsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/crondsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/extmarketsvc"
 	"github.com/erda-project/erda/modules/pipeline/services/permissionsvc"
@@ -57,7 +56,7 @@ import (
 )
 
 // Initialize 初始化应用启动服务.
-func Initialize() error {
+func (p *provider) Initialize() error {
 	conf.Load()
 
 	if conf.Debug() {
@@ -65,7 +64,7 @@ func Initialize() error {
 		logrus.Debug("DEBUG MODE")
 	}
 
-	server, err := do()
+	server, err := p.do()
 	if err != nil {
 		return err
 	}
@@ -75,7 +74,7 @@ func Initialize() error {
 	return server.ListenAndServe()
 }
 
-func do() (*httpserver.Server, error) {
+func (p *provider) do() (*httpserver.Server, error) {
 
 	// TODO metric
 	// // metrics
@@ -112,7 +111,6 @@ func do() (*httpserver.Server, error) {
 
 	// init services
 	appSvc := appsvc.New(bdl)
-	cmSvc := cmsvc.New(bdl, dbClient)
 	buildArtifactSvc := buildartifactsvc.New(dbClient)
 	buildCacheSvc := buildcachesvc.New(dbClient)
 	permissionSvc := permissionsvc.New(bdl)
@@ -127,17 +125,16 @@ func do() (*httpserver.Server, error) {
 	engine := pipengine.New(dbClient)
 
 	// init services
-	pipelineSvc := pipelinesvc.New(appSvc, cmSvc, crondSvc, actionAgentSvc, extMarketSvc, pipelineCronSvc,
+	pipelineSvc := pipelinesvc.New(appSvc, crondSvc, actionAgentSvc, extMarketSvc, pipelineCronSvc,
 		permissionSvc, queueManage, dbClient, bdl, publisher, engine, js, etcdctl)
+	pipelineSvc.WithCmsService(p.CmsService)
 
 	pipelineFun := &reconciler.PipelineSvcFunc{
 		CronNotExecuteCompensate: pipelineSvc.CronNotExecuteCompensateById,
 	}
 
-	// init cluster info before pipeline scheduler task executors init
-	if err := clusterinfo.Initialize(bdl); err != nil {
-		return nil, err
-	}
+	// set bundle before initialize scheduler, because scheduler need use bdl get clusters
+	clusterinfo.Initialize(bdl)
 
 	r, err := reconciler.New(js, etcdctl, bdl, dbClient, actionAgentSvc, extMarketSvc, pipelineFun)
 	if err != nil {
@@ -162,7 +159,6 @@ func do() (*httpserver.Server, error) {
 		endpoints.WithDBClient(dbClient),
 		endpoints.WithQueryStringDecoder(queryStringDecoder),
 		endpoints.WithAppSvc(appSvc),
-		endpoints.WithCMSvc(cmSvc),
 		endpoints.WithBuildArtifactSvc(buildArtifactSvc),
 		endpoints.WithBuildCacheSvc(buildCacheSvc),
 		endpoints.WithPermissionSvc(permissionSvc),
@@ -197,7 +193,7 @@ func do() (*httpserver.Server, error) {
 	}
 
 	// register cluster hook after pipeline service start
-	if err := clusterinfo.RegisterClusterHook(bdl); err != nil {
+	if err := clusterinfo.RegisterClusterHook(); err != nil {
 		return nil, err
 	}
 

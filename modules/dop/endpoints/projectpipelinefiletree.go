@@ -17,7 +17,10 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/modules/dop/services/apierrors"
@@ -65,7 +68,13 @@ func (e *Endpoints) GetFileTreeNode(ctx context.Context, r *http.Request, vars m
 	if err := e.queryStringDecoder.Decode(&req, r.URL.Query()); err != nil {
 		return apierrors.ErrListFileTreeNodes.InvalidParameter(err).ToResp(), nil
 	}
-	req.Inode = vars["inode"]
+	inode, err := url.QueryUnescape(vars["inode"])
+	if err != nil {
+		logrus.Errorf("QueryUnescape pipeline filetree inode %v failed", vars["inode"])
+		inode = vars["inode"]
+	}
+
+	req.Inode = inode
 	req.IdentityInfo = identityInfo
 
 	// 获取企业id
@@ -150,8 +159,14 @@ func (e *Endpoints) DeleteFileTreeNode(ctx context.Context, r *http.Request, var
 		return apierrors.ErrDeleteFileTreeNode.NotLogin().ToResp(), nil
 	}
 
+	inode, err := url.QueryUnescape(vars["inode"])
+	if err != nil {
+		logrus.Errorf("QueryUnescape pipeline filetree inode %v failed", vars["inode"])
+		inode = vars["inode"]
+	}
+
 	req := apistructs.UnifiedFileTreeNodeDeleteRequest{
-		Inode:        vars["inode"],
+		Inode:        inode,
 		IdentityInfo: identityInfo,
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -180,6 +195,12 @@ func (e *Endpoints) FindFileTreeNodeAncestors(ctx context.Context, r *http.Reque
 		return apierrors.ErrFindFileTreeNodeAncestors.NotLogin().ToResp(), nil
 	}
 
+	inode, err := url.QueryUnescape(vars["inode"])
+	if err != nil {
+		logrus.Errorf("QueryUnescape pipeline filetree inode %v failed", vars["inode"])
+		inode = vars["inode"]
+	}
+
 	// 获取企业id
 	orgID, err := getPOrgId(r)
 	if err != nil {
@@ -189,7 +210,7 @@ func (e *Endpoints) FindFileTreeNodeAncestors(ctx context.Context, r *http.Reque
 	// TODO: 鉴权
 
 	req := apistructs.UnifiedFileTreeNodeFindAncestorsRequest{
-		Inode:        vars["inode"],
+		Inode:        inode,
 		IdentityInfo: identityInfo,
 	}
 

@@ -17,13 +17,13 @@ import (
 	"context"
 
 	"github.com/erda-project/erda/apistructs"
+	"github.com/erda-project/erda/bundle"
 	protocol "github.com/erda-project/erda/modules/openapi/component-protocol"
 )
 
 type ComponentAction struct{}
 
 func (ca *ComponentAction) Render(ctx context.Context, c *apistructs.Component, scenario apistructs.ComponentProtocolScenario, event apistructs.ComponentEvent, gs *apistructs.GlobalStateData) error {
-
 	switch event.Operation {
 	case apistructs.ClickOperation:
 		c.State = map[string]interface{}{
@@ -43,6 +43,33 @@ func (ca *ComponentAction) Render(ctx context.Context, c *apistructs.Component, 
 		}
 	}
 	return nil
+}
+
+func pipelineShowRefresh(pipelineIDObject interface{}, bdl *bundle.Bundle) bool {
+
+	if pipelineIDObject == nil {
+		return false
+	}
+
+	pipelineID, ok := pipelineIDObject.(float64)
+	if !ok {
+		return false
+	}
+
+	var req apistructs.PipelineDetailRequest
+	req.PipelineID = uint64(pipelineID)
+	req.SimplePipelineBaseResult = true
+
+	dto, err := bdl.GetPipelineV2(req)
+	if err != nil {
+		return false
+	}
+
+	if dto == nil || dto.Status.IsEndStatus() {
+		return false
+	}
+	return true
+
 }
 
 func RenderCreator() protocol.CompRender {

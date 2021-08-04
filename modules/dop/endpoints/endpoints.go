@@ -23,6 +23,7 @@ import (
 	"github.com/gorilla/schema"
 	"github.com/sirupsen/logrus"
 
+	cmspb "github.com/erda-project/erda-proto-go/core/pipeline/cms/pb"
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/bundle"
 	"github.com/erda-project/erda/modules/dop/dao"
@@ -214,6 +215,8 @@ func (e *Endpoints) Routes() []httpserver.Endpoint {
 		{Path: "/api/cicd-crons/{cronID}/actions/start", Method: http.MethodPut, Handler: e.pipelineCronStart},
 		{Path: "/api/cicd-crons/{cronID}/actions/stop", Method: http.MethodPut, Handler: e.pipelineCronStop},
 		{Path: "/api/cicd-crons", Method: http.MethodPost, Handler: e.pipelineCronCreate},
+		// eventBox call back only support post method
+		{Path: "/api/cicd-crons/actions/hook-for-update", Method: http.MethodPost, Handler: e.pipelineCronUpdate},
 		{Path: "/api/cicd-crons/{cronID}", Method: http.MethodDelete, Handler: e.pipelineCronDelete},
 
 		// project pipeline
@@ -608,6 +611,7 @@ type Endpoints struct {
 	permission         *permission.Permission
 	fileTree           *filetree.GittarFileTree
 	pFileTree          *projectpipelinefiletree.FileTree
+	pipelineCms        cmspb.CmsServiceServer
 
 	db              *dao.DBClient
 	testcase        *testcase.Service
@@ -694,6 +698,12 @@ func WithBundle(bdl *bundle.Bundle) Option {
 func WithPipeline(p *pipeline.Pipeline) Option {
 	return func(e *Endpoints) {
 		e.pipeline = p
+	}
+}
+
+func WithPipelineCms(cms cmspb.CmsServiceServer) Option {
+	return func(e *Endpoints) {
+		e.pipelineCms = cms
 	}
 }
 

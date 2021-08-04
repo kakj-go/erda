@@ -36,6 +36,7 @@ const (
 	SenderCoreServices   Sender = "coreServices"
 	SenderClusterManager Sender = "clusterManager"
 	SenderDOP            Sender = "dop"
+	SenderGittar         Sender = "gittar"
 )
 
 // Event types
@@ -49,6 +50,8 @@ const (
 	ApproveEvent               = "approve"
 	ApprovalStatusChangedEvent = "approvalStatusChanged"
 	IssueEvent                 = "issue"
+	PipelineYmlEvent           = "pipelineYml"
+	GitPushEvent               = "git_push"
 )
 
 // Event actions
@@ -77,6 +80,31 @@ func (b *Bundle) CreateEvent(ev *apistructs.EventCreateRequest) error {
 	if !resp.IsOK() {
 		return apierrors.ErrInvoke.InternalError(
 			errors.Errorf("failed to create event, status-code: %d, body: %v",
+				resp.StatusCode(),
+				buf.String(),
+			))
+	}
+	return nil
+}
+
+func (b *Bundle) CreateEventNotify(ev *apistructs.EventBoxRequest) error {
+	host, err := b.urls.EventBox()
+	if err != nil {
+		return err
+	}
+	hc := b.hc
+
+	var buf bytes.Buffer
+	resp, err := hc.Post(host).Path("/api/dice/eventbox/message/create").
+		Header("Accept", "application/json").
+		JSONBody(&ev).
+		Do().Body(&buf)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return apierrors.ErrInvoke.InternalError(
+			errors.Errorf("failed to create event notify, status-code: %d, body: %v",
 				resp.StatusCode(),
 				buf.String(),
 			))

@@ -12,6 +12,9 @@ envs:
   ETCDCTL_API: "3"
   MONITOR_ADDR: monitor:7096
   COLLECTOR_ADDR: collector:7076
+  PIPELINE_ADDR: pipeline:3081
+  ADMIN_ADDR: admin:9095
+  MSP_ADDR: msp:8080
 services:
   action-runner-scheduler:
     cmd: "/app/action-runner-scheduler"
@@ -38,10 +41,10 @@ services:
         port: 9500
         path: "/healthz"
         duration: 120
-      exec: {}
-    expose: []
-    hosts: []
-    envs: {}
+      exec: { }
+    expose: [ ]
+    hosts: [ ]
+    envs: { }
   dop:
     binds:
       - "${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-ca.pem:/certs/etcd-ca.pem:ro"
@@ -56,7 +59,7 @@ services:
       DEBUG: "true"
       MONITOR_ADDR: monitor:7096
     health_check:
-      exec: {}
+      exec: { }
       http:
         duration: 120
         path: /_api/health
@@ -68,7 +71,7 @@ services:
         port: 9527
         protocol: TCP
     resources:
-      cpu: ${request_cpu:0.5}
+      cpu: ${request_cpu:1}
       max_cpu: 1
       mem: ${request_mem:2048}
       max_mem: 2048
@@ -82,12 +85,18 @@ services:
       - port: 9095
         protocol: TCP
         l4_protocol: TCP
+      - port: 9096
+        protocol: TCP
+        l4_protocol: TCP
+      - port: 8096
+        protocol: TCP
+        l4_protocol: TCP
     binds:
       - "${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-ca.pem:/certs/etcd-ca.pem:ro"
       - "${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-client.pem:/certs/etcd-client.pem:ro"
       - "${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-client-key.pem:/certs/etcd-client-key.pem:ro"
     resources:
-      cpu: ${request_cpu:0.1}
+      cpu: ${request_cpu:0.2}
       max_cpu: 0.2
       mem: ${request_mem:128}
       max_mem: 256
@@ -102,7 +111,7 @@ services:
         port: 9095
         path: "/api/healthy"
         duration: 120
-      exec: {}
+      exec: { }
   core-services:
     cmd: "/app/core-services"
     ports:
@@ -163,8 +172,8 @@ services:
       labels:
         GROUP: "dice"
     health_check:
-      http: {}
-      exec: {}
+      http: { }
+      exec: { }
   cluster-dialer:
     cmd: "/app/cluster-dialer"
     expose:
@@ -176,10 +185,10 @@ services:
     envs:
       DEBUG: "false"
     resources:
-      cpu: ${request_cpu:0.5}
-      max_cpu: 0.5
-      mem: ${request_mem:512}
-      max_mem: 512
+      cpu: ${request_cpu:2}
+      max_cpu: 2
+      mem: ${request_mem:2048}
+      max_mem: 2048
       network:
         mode: "container"
     deployments:
@@ -187,8 +196,28 @@ services:
       labels:
         GROUP: "dice"
     health_check:
-      http: {}
-      exec: {}
+      http: { }
+      exec: { }
+  cluster-agent:
+    cmd: "/app/cluster-agent"
+    ports: [ ]
+    envs:
+      DEBUG: "false"
+    resources:
+      cpu: ${request_cpu:1}
+      max_cpu: 1
+      mem: ${request_mem:1024}
+      max_mem: 1024
+      network:
+        mode: "container"
+    deployments:
+      replicas: 1
+      labels:
+        GROUP: "dice"
+    health_check:
+      http: { }
+      exec:
+        cmd: "ls"
   collector:
     cmd: "/app/collector"
     ports:
@@ -220,9 +249,9 @@ services:
         port: 7076
         path: "/api/health"
         duration: 120
-      exec: {}
-    hosts: []
-    binds: []
+      exec: { }
+    hosts: [ ]
+    binds: [ ]
   dicehub:
     cmd: "/app/dicehub"
     ports:
@@ -253,7 +282,7 @@ services:
         port: 10000
         path: "/healthz"
         duration: 120
-      exec: {}
+      exec: { }
   eventbox:
     cmd: "/app/eventbox"
     ports:
@@ -282,7 +311,7 @@ services:
         port: 9528
         path: "/api/dice/eventbox/version"
         duration: 120
-      exec: {}
+      exec: { }
   gittar:
     cmd: "/app/gittar"
     ports:
@@ -313,8 +342,8 @@ services:
     expose:
       - 5566
     health_check:
-      http: {}
-      exec: {}
+      http: { }
+      exec: { }
   hepa:
     cmd: "/app/hepa"
     ports:
@@ -339,7 +368,7 @@ services:
         port: 8080
         path: "/api/gateway/health/check"
         duration: 120
-      exec: {}
+      exec: { }
   monitor:
     cmd: "/app/monitor"
     ports:
@@ -353,6 +382,7 @@ services:
         protocol: "TCP"
         l4_protocol: "TCP"
     envs:
+      LOG_LEVEL: INFO
     resources:
       cpu: ${request_cpu:1}
       mem: ${request_mem:512}
@@ -369,10 +399,10 @@ services:
         port: 7096
         path: "/api/health"
         duration: 120
-      exec: {}
-    expose: []
-    hosts: []
-    binds: []
+      exec: { }
+    expose: [ ]
+    hosts: [ ]
+    binds: [ ]
   msp:
     cmd: "/app/msp"
     ports:
@@ -403,9 +433,9 @@ services:
         port: 8080
         path: "/health"
         duration: 120
-      exec: {}
-    expose: []
-    hosts: []
+      exec: { }
+    expose: [ ]
+    hosts: [ ]
     binds:
       - "${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-ca.pem:/certs/etcd-ca.pem:ro"
       - "${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-client.pem:/certs/etcd-client.pem:ro"
@@ -441,7 +471,7 @@ services:
         port: 9529
         path: "/api/openapi/version"
         duration: 120
-      exec: {}
+      exec: { }
   ecp:
     cmd: "/app/ecp"
     ports:
@@ -459,13 +489,15 @@ services:
       labels:
         GROUP: "dice"
     health_check:
-      http: {}
-      exec: {}
+      http: { }
+      exec: { }
   cmp:
     cmd: "/app/cmp"
     envs:
       UC_CLIENT_ID: "dice"
       UC_CLIENT_SECRET: "secret"
+      ERDA_NAMESPACE: "default"
+      ERDA_HELM_CHART_VERSION: "1.1.0"
     ports:
       - port: 9027
         protocol: "TCP"
@@ -485,8 +517,8 @@ services:
       labels:
         GROUP: "dice"
     health_check:
-      http: {}
-      exec: {}
+      http: { }
+      exec: { }
   orchestrator:
     cmd: "/app/orchestrator"
     ports:
@@ -517,11 +549,14 @@ services:
         port: 8081
         path: "/info"
         duration: 120
-      exec: {}
+      exec: { }
   pipeline:
     cmd: "/app/pipeline"
     ports:
       - port: 3081
+        protocol: "TCP"
+        l4_protocol: "TCP"
+      - port: 30810
         protocol: "TCP"
         l4_protocol: "TCP"
     envs:
@@ -549,7 +584,7 @@ services:
         port: 3081
         path: "/ping"
         duration: 120
-      exec: {}
+      exec: { }
   scheduler:
     cmd: "/app/scheduler"
     ports:
@@ -561,7 +596,7 @@ services:
       CMDB_GROUP: "spot_cmdb_group2"
       DEBUG: "false"
     resources:
-      cpu: ${request_cpu:0.3}
+      cpu: ${request_cpu:1}
       max_cpu: 1
       mem: ${request_mem:2048}
       max_mem: 2048
@@ -580,7 +615,7 @@ services:
         port: 9091
         path: "/info"
         duration: 120
-      exec: {}
+      exec: { }
   streaming:
     cmd: "/app/streaming"
     ports:
@@ -602,6 +637,7 @@ services:
       TRACE_ENABLE: "true"
       TRACE_GROUP_ID: "spot-monitor-trace"
       TRACE_TTL: "168h"
+      LOG_LEVEL: INFO
     resources:
       cpu: ${request_cpu:1.5}
       mem: ${request_mem:1024}
@@ -622,46 +658,7 @@ services:
         port: 7091
         path: "/api/health"
         duration: 120
-      exec: {}
-  soldier:
-    cmd: /app/soldier
-    ports:
-    - port: 9028
-      protocol: TCP
-      l4_protocol: TCP
-      expose: true
-      default: false
-    envs:
-      FPS_BACKEND_URL: http://fps:17621
-      NETDATA_AGENT_PATH: devops/ci/action-agent
-      NETDATA_CI_PATH: devops/ci/pipelines
-      NETDATA_REGISTRY_PATH: dice/registry
-      NETDATA_SQLDATA_PATH: devops/storage
-      PROXY_SERVICES: fps,territory,troy,zkproxy
-      TERRITORY_BACKEND_RE: ^territory
-      TROY_BACKEND_RE: ^troy
-      ZKPROXY_BACKEND_RE: ^terminus-zkproxy
-    resources:
-      cpu: ${request_cpu:0.3}
-      max_cpu: 0.3
-      mem: 64
-      network:
-        mode: container
-    binds:
-    - ${nfs_root:/netdata}:/netdata:rw
-    - /var/run/docker.sock:/var/run/docker.sock:ro
-    deployments:
-      replicas: 1
-      labels:
-        GROUP: dice
-    expose:
-    - 9028
-    health_check:
-      http:
-        port: 9028
-        path: /_health_check
-        duration: 120
-      exec: {}
+      exec: { }
   uc-adaptor:
     cmd: "/app/uc-adaptor"
     ports:
@@ -697,7 +694,7 @@ services:
         port: 12580
         path: "/healthy"
         duration: 120
-      exec: {}
+      exec: { }
 addons:
   infos:
     plan: "custom:basic"
