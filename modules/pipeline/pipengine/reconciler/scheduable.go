@@ -16,6 +16,7 @@ package reconciler
 
 import (
 	"sort"
+	"strconv"
 
 	"github.com/erda-project/erda/modules/pipeline/pipengine/reconciler/rlog"
 	"github.com/erda-project/erda/modules/pipeline/spec"
@@ -58,7 +59,7 @@ func (r *Reconciler) getSchedulableTasks(p *spec.Pipeline, tasks []*spec.Pipelin
 		// get task by nodeName
 		task := taskMap[nodeName]
 		// if task is already processing by another goroutine, skip
-		if _, alreadyProcessing := r.processingTasks.LoadOrStore(task.ID, true); alreadyProcessing {
+		if _, alreadyProcessing := r.processingTasks.LoadOrStore(strconv.FormatUint(p.ID, 10)+"_"+task.Name, true); alreadyProcessing {
 			continue
 		}
 		schedulableTasks = append(schedulableTasks, task)

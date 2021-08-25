@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 
 	"github.com/erda-project/erda/apistructs"
@@ -190,7 +191,7 @@ func getOperations(clickableKeys []uint64) map[string]interface{} {
 
 func getProps() map[string]interface{} {
 	return map[string]interface{}{
-		"rowKey": "id",
+		"rowKey": "key",
 		"scroll": map[string]interface{}{"x": 1200},
 		"columns": []columns{
 			{
@@ -292,6 +293,7 @@ func (a *ExecuteTaskTable) setData(pipeline *apistructs.PipelineDetailDTO) error
 			}
 			if task.Labels == nil || len(task.Labels) == 0 {
 				list := map[string]interface{}{
+					"key":               getKey(task.ID),
 					"id":                task.ID,
 					"snippetPipelineID": task.SnippetPipelineID,
 					"operate": map[string]interface{}{
@@ -383,6 +385,7 @@ func (a *ExecuteTaskTable) setData(pipeline *apistructs.PipelineDetailDTO) error
 					path = ""
 				}
 				list := map[string]interface{}{
+					"key":               getKey(task.ID),
 					"id":                task.ID,
 					"snippetPipelineID": task.SnippetPipelineID,
 					"operate": map[string]interface{}{
@@ -417,6 +420,7 @@ func (a *ExecuteTaskTable) setData(pipeline *apistructs.PipelineDetailDTO) error
 					}
 				}
 				list := map[string]interface{}{
+					"key":               getKey(task.ID),
 					"id":                task.ID,
 					"snippetPipelineID": task.SnippetPipelineID,
 					"operate": map[string]interface{}{
@@ -448,6 +452,7 @@ func (a *ExecuteTaskTable) setData(pipeline *apistructs.PipelineDetailDTO) error
 					}
 				}
 				list := map[string]interface{}{
+					"key":               getKey(task.ID),
 					"id":                task.ID,
 					"snippetPipelineID": task.SnippetPipelineID,
 					"operate": map[string]interface{}{
@@ -480,6 +485,13 @@ func (a *ExecuteTaskTable) setData(pipeline *apistructs.PipelineDetailDTO) error
 	a.Data["list"] = lists
 	a.Operations = getOperations(clickableKeys)
 	return nil
+}
+
+func getKey(id uint64) uint64 {
+	if id <= 0 {
+		return uint64(uuid.New().ID())
+	}
+	return id
 }
 
 func (a *ExecuteTaskTable) marshal(c *apistructs.Component) error {

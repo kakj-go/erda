@@ -131,7 +131,11 @@ func (p *provider) do() (*httpserver.Server, error) {
 	pipelineSvc.WithCmsService(p.CmsService)
 
 	pipelineFun := &reconciler.PipelineSvcFunc{
-		CronNotExecuteCompensate: pipelineSvc.CronNotExecuteCompensateById,
+		CronNotExecuteCompensate:                pipelineSvc.CronNotExecuteCompensateById,
+		MergePipelineYmlTasks:                   pipelineSvc.MergePipelineYmlTasks,
+		HandleQueryPipelineYamlBySnippetConfigs: pipelineSvc.HandleQueryPipelineYamlBySnippetConfigs,
+		MakeSnippetPipeline4Create:              pipelineSvc.MakeSnippetPipeline4Create,
+		CreatePipelineGraph:                     pipelineSvc.CreatePipelineGraph,
 	}
 
 	// set bundle before initialize scheduler, because scheduler need use bdl get clusters
