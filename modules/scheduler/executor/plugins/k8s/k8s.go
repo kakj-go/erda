@@ -1,15 +1,16 @@
 // Copyright (c) 2021 Terminus, Inc.
 //
-// This program is free software: you can use, redistribute, and/or modify
-// it under the terms of the GNU Affero General Public License, version 3
-// or later ("AGPL"), as published by the Free Software Foundation.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-// FITNESS FOR A PARTICULAR PURPOSE.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 // Package k8s implements managing the servicegroup by k8s cluster
 package k8s
@@ -127,7 +128,6 @@ func init() {
 
 		parentctx, cancelSyncInstanceinfo := context.WithCancel(context.Background())
 		k.instanceinfoSyncCancelFunc = cancelSyncInstanceinfo
-
 		go func() {
 			for {
 				select {
@@ -277,11 +277,6 @@ func New(name executortypes.Name, clusterName string, options map[string]string)
 	if err != nil {
 		logrus.Errorf("get cluster error: %v", cluster)
 		return nil, err
-	}
-
-	// credential config
-	if cluster.ManageConfig == nil {
-		return nil, fmt.Errorf("cluster %s manage config is nil", clusterName)
 	}
 
 	addr, client, err := util.GetClient(clusterName, cluster.ManageConfig)
@@ -468,6 +463,7 @@ func (k *Kubernetes) Destroy(ctx context.Context, specObj interface{}) error {
 		k.setProjectServiceName(runtime)
 	}
 	if runtime.ProjectNamespace == "" {
+		logrus.Infof("delete runtime %s on namespace %s", runtime.ID, runtime.Type)
 		if err := k.destroyRuntime(ns); err != nil {
 			if k8serror.NotFound(err) {
 				logrus.Debugf("k8s namespace not found or already deleted, namespace: %s", ns)
@@ -480,15 +476,16 @@ func (k *Kubernetes) Destroy(ctx context.Context, specObj interface{}) error {
 			logrus.Errorf("failed to delete pv, namespace: %s, name: %s, (%v)", runtime.Type, runtime.ID, err)
 			return err
 		}
-		logrus.Debugf("succeed to destroy runtime, namespace: %s, name: %s", runtime.Type, runtime.ID)
 		return nil
 	} else {
+		logrus.Infof("delete runtime %s on namespace %s", runtime.ID, runtime.ProjectNamespace)
 		err = k.destroyRuntimeByProjectNamespace(ns, runtime)
 		if err != nil {
 			logrus.Errorf("failed to delete runtime resource %v", err)
 			return err
 		}
 	}
+	logrus.Infof("delete runtime %s finished", runtime.ID)
 	return nil
 }
 
@@ -801,7 +798,7 @@ func (k *Kubernetes) updateOneByOne(sg *apistructs.ServiceGroup) error {
 				if err != nil {
 					return err
 				}
-				if err = k.putDeployment(desiredDeployment); err != nil {
+				if err = k.putDeployment(desiredDeployment, &svc); err != nil {
 					logrus.Debugf("failed to update deployment in update interface, name: %s, (%v)", svc.Name, err)
 					return err
 				}
@@ -990,7 +987,7 @@ func (k *Kubernetes) getStatelessStatus(ctx context.Context, sg *apistructs.Serv
 			isReady = false
 			resultStatus.Status = apistructs.StatusProgressing
 			sg.Services[i].Status = apistructs.StatusProgressing
-			podstatuses, err := k.pod.GetNamespacedPodsStatus(pods.Items)
+			podstatuses, err := k.pod.GetNamespacedPodsStatus(pods.Items, sg.Services[i].Name)
 			if err != nil {
 				logrus.Errorf("failed to get pod unready reasons, namespace: %v, name: %s, %v",
 					sg.Services[i].Namespace,

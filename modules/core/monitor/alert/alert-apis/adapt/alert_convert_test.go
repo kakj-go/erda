@@ -1,15 +1,16 @@
 // Copyright (c) 2021 Terminus, Inc.
 //
-// This program is free software: you can use, redistribute, and/or modify
-// it under the terms of the GNU Affero General Public License, version 3
-// or later ("AGPL"), as published by the Free Software Foundation.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-// FITNESS FOR A PARTICULAR PURPOSE.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package adapt
 
@@ -17,7 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/protobuf/types/known/structpb"
+
 	"github.com/erda-project/erda-infra/providers/i18n"
+	"github.com/erda-project/erda-proto-go/core/monitor/alert/pb"
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/modules/core/monitor/alert/alert-apis/db"
 	"github.com/erda-project/erda/pkg/encoding/jsonmap"
@@ -190,6 +194,196 @@ func TestAlertNotify_ToModel(t *testing.T) {
 			}
 			if got := n.ToModel(tt.args.alert, tt.args.silencePolicies); got == nil {
 				t.Errorf("ToModel() = nil")
+			}
+		})
+	}
+}
+
+func TestToDBAlertExpressionModel(t *testing.T) {
+	type args struct {
+		e       *pb.AlertExpression
+		orgName string
+		alert   *pb.Alert
+		rule    *pb.AlertRule
+	}
+	clusterName, _ := structpb.NewList([]interface{}{
+		"terminus-test",
+		"fdp-test",
+	})
+	templateCluster, _ := structpb.NewList([]interface{}{
+		"cluster_name",
+	})
+	templateOutput, _ := structpb.NewList([]interface{}{
+		"alert",
+	})
+	ruleAttribute, _ := structpb.NewList([]interface{}{
+		"machine_mem",
+		"machine",
+	})
+	templateFilters0, _ := structpb.NewList([]interface{}{
+		map[string]interface{}{
+			"tag":      "cluster_name",
+			"operator": "neq",
+			"value":    "xxxxxxx",
+			"dataType": "",
+		},
+	})
+	templateFunctions, _ := structpb.NewStruct(map[string]interface{}{
+		"unit":       "",
+		"field":      "mem_used",
+		"alias":      "sdf",
+		"aggregator": "sum",
+		"operator":   "neq",
+		"value":      1,
+		"dataType":   "",
+	})
+	templateSelect, _ := structpb.NewList([]interface{}{
+		map[string]*structpb.Value{
+			"os":       structpb.NewStringValue("#os"),
+			"hostname": structpb.NewStringValue("#hostname"),
+		},
+	})
+
+	tests := []struct {
+		name    string
+		args    args
+		want    *db.AlertExpression
+		wantErr bool
+	}{
+		{
+			name: "TestToDBAlertExpressionModel",
+			args: args{
+				e: &pb.AlertExpression{
+					Id:         44,
+					RuleId:     0,
+					AlertIndex: "96683ebf-a1de-4756-9f55-e2794e00a19e",
+					Window:     1,
+					Functions: []*pb.AlertExpressionFunction{
+						{
+							Field:      "mem_used",
+							Aggregator: "sum",
+							Operator:   "neq",
+							Value:      structpb.NewNumberValue(1),
+						},
+					},
+					IsRecover:  false,
+					CreateTime: 1628821079000,
+					UpdateTime: 1628821079000,
+				},
+				orgName: "terminus",
+				alert: &pb.Alert{
+					Id:           56,
+					Name:         "pjycccc",
+					AlertScope:   "org",
+					AlertScopeId: "1",
+					Enable:       true,
+					Rules: []*pb.AlertExpression{
+						{
+							Id:         44,
+							RuleId:     0,
+							AlertIndex: "96683ebf-a1de-4756-9f55-e2794e00a19e",
+							Window:     1,
+							Functions: []*pb.AlertExpressionFunction{
+								{
+									Field:      "mem_used",
+									Aggregator: "sum",
+									Operator:   "neq",
+									Value:      structpb.NewNumberValue(1),
+								},
+							},
+							IsRecover:  false,
+							CreateTime: 1628821079000,
+							UpdateTime: 1628821079000,
+						},
+					},
+					Notifies: []*pb.AlertNotify{
+						{
+							Id:          0,
+							Type:        "notify_group",
+							GroupId:     21,
+							GroupType:   "mbox",
+							NotifyGroup: nil,
+							DingdingUrl: "",
+							Silence: &pb.AlertNotifySilence{
+								Value:  5,
+								Unit:   "minutes",
+								Policy: "fixed",
+							},
+							CreateTime: 0,
+							UpdateTime: 0,
+						},
+					},
+					Filters: nil,
+					Attributes: map[string]*structpb.Value{
+						"alert_domain":         structpb.NewStringValue("https://erda.test.terminus.io"),
+						"alert_dashboard_path": structpb.NewStringValue("/dataCenter/customDashboard"),
+						"alert_record_path":    structpb.NewStringValue("/dataCenter/alarm/record"),
+						"dice_org_id":          structpb.NewStringValue("1"),
+						"cluster_name":         structpb.NewListValue(clusterName),
+					},
+					ClusterNames: []string{"terminus-test", "fdp-test"},
+					Domain:       "https://erda.test.terminus.io",
+					CreateTime:   0,
+					UpdateTime:   0,
+				},
+				rule: &pb.AlertRule{
+					Id:         44,
+					Name:       "erda_test",
+					AlertScope: "org",
+					AlertType:  "org_customize",
+					AlertIndex: &pb.DisplayKey{
+						Key:     "96683ebf-a1de-4756-9f55-e2794e00a19e",
+						Display: "erda_test",
+					},
+					Template: map[string]*structpb.Value{
+						"filters":   structpb.NewListValue(templateFilters0),
+						"window":    structpb.NewNumberValue(float64(1)),
+						"functions": structpb.NewStructValue(templateFunctions),
+						"group":     structpb.NewListValue(templateCluster),
+						"metric":    structpb.NewStringValue("host_summary"),
+						"outputs":   structpb.NewListValue(templateOutput),
+						"select":    structpb.NewListValue(templateSelect),
+					},
+					Window: 1,
+					Functions: []*pb.AlertRuleFunction{
+						{
+							Field: &pb.DisplayKey{
+								Key:     "mem_used",
+								Display: "mem_used",
+							},
+							Aggregator: "sum",
+							Operator:   "neq",
+							Value:      structpb.NewNumberValue(float64(1)),
+							DataType:   "number",
+							Unit:       "",
+						},
+					},
+					IsRecover: false,
+					Attributes: map[string]*structpb.Value{
+						"active_metric_groups": structpb.NewListValue(ruleAttribute),
+						"alert_dashboard_id":   structpb.NewStringValue("e1730156951c47ec90ea79552b596a39"),
+						"alert_group":          structpb.NewStringValue("{{cluster_name}}-{{cluster_name}}"),
+						"level":                structpb.NewStringValue("WARNING"),
+						"recover":              structpb.NewStringValue("false"),
+						"tickets_metric_key":   structpb.NewStringValue("{{cluster_name}}"),
+					},
+					Version:    "",
+					Enable:     true,
+					CreateTime: 1628821079000,
+					UpdateTime: 1628821079000,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ToDBAlertExpressionModel(tt.args.e, tt.args.orgName, tt.args.alert, tt.args.rule)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("ToDBAlertExpressionModel() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got == nil {
+				t.Errorf("ToDBAlertExpressionModel() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

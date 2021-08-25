@@ -1,15 +1,16 @@
 // Copyright (c) 2021 Terminus, Inc.
 //
-// This program is free software: you can use, redistribute, and/or modify
-// it under the terms of the GNU Affero General Public License, version 3
-// or later ("AGPL"), as published by the Free Software Foundation.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-// FITNESS FOR A PARTICULAR PURPOSE.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package k8sjob
 
@@ -197,12 +198,7 @@ func (k *K8sJob) Remove(ctx context.Context, task *spec.PipelineTask) (data inte
 		return nil, err
 	}
 
-	kubeJob, err := k.generateKubeJob(job)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to remove k8s job")
-	}
-
-	name := kubeJob.Name
+	name := makeJobName(task.Extra.Namespace, task.Extra.UUID)
 	namespace := job.Namespace
 	propagationPolicy := metav1.DeletePropagationBackground
 
@@ -229,14 +225,14 @@ func (k *K8sJob) Remove(ctx context.Context, task *spec.PipelineTask) (data inte
 		logrus.Infof("finish to delete job %s", name)
 
 		for index := range job.Volumes {
-			pvcName := fmt.Sprintf("%s-%s-%d", namespace, job.Name, index)
+			pvcName := fmt.Sprintf("%s-%d", name, index)
 			logrus.Infof("start to delete pvc %s", pvcName)
 			err = k.client.ClientSet.CoreV1().PersistentVolumeClaims(namespace).Delete(ctx, pvcName, metav1.DeleteOptions{})
 			if err != nil {
 				if !k8serrors.IsNotFound(err) {
 					return nil, errors.Wrapf(err, "failed to remove k8s pvc, name: %s", pvcName)
 				}
-				logrus.Warningf("the job %s's pvc %s in namespace %s is not found", job.Name, pvcName, namespace)
+				logrus.Warningf("the job %s's pvc %s in namespace %s is not found", name, pvcName, namespace)
 			}
 			logrus.Infof("finish to delete pvc %s", pvcName)
 		}
@@ -303,10 +299,19 @@ func (k *K8sJob) BatchDelete(ctx context.Context, tasks []*spec.PipelineTask) (d
 	return nil, nil
 }
 
-// Inspect use kubectl describe job information
+// Inspect use kubectl describe pod information, return latest pod description for current job
 func (k *K8sJob) Inspect(ctx context.Context, task *spec.PipelineTask) (apistructs.TaskInspect, error) {
-	d := describe.JobDescriber{k.client.ClientSet}
-	s, err := d.Describe(task.Extra.Namespace, logic.MakeJobName(task), describe.DescriberSettings{
+	jobPods, err := k.client.ClientSet.CoreV1().Pods(task.Extra.Namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: logic.MakeJobLabelSelector(task),
+	})
+	if err != nil {
+		return apistructs.TaskInspect{}, err
+	}
+	if len(jobPods.Items) == 0 {
+		return apistructs.TaskInspect{}, errors.Errorf("get empty pods in job: %s", logic.MakeJobName(task))
+	}
+	d := describe.PodDescriber{k.client.ClientSet}
+	s, err := d.Describe(task.Extra.Namespace, jobPods.Items[len(jobPods.Items)-1].Name, describe.DescriberSettings{
 		ShowEvents: true,
 	})
 	if err != nil {
@@ -421,7 +426,7 @@ func (k *K8sJob) generateKubeJob(specObj interface{}) (*batchv1.Job, error) {
 			APIVersion: jobAPIVersion,
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      strutil.Concat(job.Namespace, ".", job.Name),
+			Name:      makeJobName(job.Namespace, job.Name),
 			Namespace: job.Namespace,
 			// TODO: Job.Labels cannot be used directly now, which does not comply with the rules of k8s labels
 			//Labels:    job.Labels,
@@ -866,4 +871,8 @@ func generateKubeJobStatus(job *batchv1.Job, jobpods *corev1.PodList, lastMsg st
 
 	statusDesc.LastMessage = lastMsg
 	return statusDesc
+}
+
+func makeJobName(namespace string, taskUUID string) string {
+	return strutil.Concat(namespace, ".", taskUUID)
 }

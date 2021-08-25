@@ -1,15 +1,16 @@
 // Copyright (c) 2021 Terminus, Inc.
 //
-// This program is free software: you can use, redistribute, and/or modify
-// it under the terms of the GNU Affero General Public License, version 3
-// or later ("AGPL"), as published by the Free Software Foundation.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 //
-// This program is distributed in the hope that it will be useful, but WITHOUT
-// ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
-// FITNESS FOR A PARTICULAR PURPOSE.
+//      http://www.apache.org/licenses/LICENSE-2.0
 //
-// You should have received a copy of the GNU Affero General Public License
-// along with this program. If not, see <http://www.gnu.org/licenses/>.
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
 
 package endpoints
 
@@ -129,6 +130,21 @@ func (e *Endpoints) pipelineDetail(ctx context.Context, r *http.Request, vars ma
 	err := e.queryStringDecoder.Decode(&req, r.URL.Query())
 	if err != nil {
 		return apierrors.ErrGetPipeline.InvalidParameter(err).ToResp(), nil
+	}
+
+	identityInfo, err := user.GetIdentityInfo(r)
+	if err != nil {
+		return apierrors.ErrGetUser.InvalidParameter(err).ToResp(), nil
+	}
+
+	// obtain pipeline information according to pipelineID
+	p, err := e.bdl.GetPipeline(req.PipelineID)
+	if err != nil {
+		return errorresp.ErrResp(err)
+	}
+
+	if err := e.permission.CheckRuntimeBranch(identityInfo, p.ApplicationID, p.Branch, apistructs.OperateAction); err != nil {
+		return errorresp.ErrResp(err)
 	}
 
 	result, err := e.bdl.GetPipelineV2(apistructs.PipelineDetailRequest{
@@ -394,8 +410,20 @@ func (e *Endpoints) pipelineCancel(ctx context.Context, r *http.Request, vars ma
 			strutil.Concat(pathPipelineID, ": ", pipelineIDStr)).ToResp(), nil
 	}
 
-	// 根据 pipelineID 获取 pipeline 信息
-	p, err := e.bdl.GetPipeline(pipelineID)
+	// action will cancel pipelineID,  pipelineID not the id that needs to be canceled
+	var cancelRequest apistructs.PipelineCancelRequest
+	if err := json.NewDecoder(r.Body).Decode(&cancelRequest); err != nil {
+		logrus.Errorf("error to decode runRequest")
+	}
+	// action request token will check with pipelineID, if send pipelineID was not this id request will response 403 error
+	// when action client request cancel not url pipelineID pipeline i was add pipelineID in body
+	// and if header not tack InternalActionHeader mean is normal request should set url pipelineID
+	if r.Header.Get(httputil.InternalActionHeader) == "" {
+		cancelRequest.PipelineID = pipelineID
+	}
+
+	// Obtain pipeline information according to pipelineID
+	p, err := e.bdl.GetPipeline(cancelRequest.PipelineID)
 	if err != nil {
 		return errorresp.ErrResp(err)
 	}
@@ -404,10 +432,8 @@ func (e *Endpoints) pipelineCancel(ctx context.Context, r *http.Request, vars ma
 		return errorresp.ErrResp(err)
 	}
 
-	if err := e.bdl.CancelPipeline(apistructs.PipelineCancelRequest{
-		PipelineID:   pipelineID,
-		IdentityInfo: identityInfo,
-	}); err != nil {
+	cancelRequest.IdentityInfo = identityInfo
+	if err := e.bdl.CancelPipeline(cancelRequest); err != nil {
 		return errorresp.ErrResp(err)
 	}
 
@@ -619,7 +645,6 @@ func (e *Endpoints) checkrunCreate(ctx context.Context, r *http.Request, vars ma
 
 		if diceworkspace.IsRefPatternMatch(gitEvent.Content.TargetBranch, pipelineYml.Spec().On.Merge.Branches) {
 			exist = true
-			break
 		}
 
 		if !exist {
