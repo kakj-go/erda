@@ -16,6 +16,7 @@ package mock
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"testing"
 
@@ -48,4 +49,106 @@ func TestGetTime(t *testing.T) {
 	t.Log("ns-after-hour:", getTime(TimeStampNsAfterHour))
 	t.Log("ns-day:", getTime(TimeStampNsDay))
 	t.Log("ns-after-day:", getTime(TimeStampNsAfterDay))
+}
+
+func Test_randIntegerByLength(t *testing.T) {
+	type args struct {
+		length string
+	}
+	tests := []struct {
+		name          string
+		args          args
+		Interval      int
+		IntervalStart *int
+	}{
+		{
+			name: "test_default_length",
+			args: args{
+				"length",
+			},
+			Interval:      18,
+			IntervalStart: &[]int{0}[0],
+		},
+		{
+			name: "test_other_length",
+			args: args{
+				"other",
+			},
+			Interval:      18,
+			IntervalStart: &[]int{0}[0],
+		},
+		{
+			name: "test_1_length",
+			args: args{
+				"1",
+			},
+			Interval: 1,
+		},
+		{
+			name: "test_5_length",
+			args: args{
+				"5",
+			},
+			Interval: 5,
+		},
+		{
+			name: "test_18_length",
+			args: args{
+				"18",
+			},
+			Interval: 18,
+		},
+		{
+			name: "test_empty_length",
+			args: args{
+				"",
+			},
+			Interval:      18,
+			IntervalStart: &[]int{0}[0],
+		},
+		{
+			name: "test_20_length",
+			args: args{
+				"20",
+			},
+			Interval:      18,
+			IntervalStart: &[]int{0}[0],
+		},
+	}
+	for _, tt := range tests {
+		// please increase the number of loops for local testing
+		for i := 0; i <= 1; i++ {
+			t.Run(tt.name, func(t *testing.T) {
+				got := randIntegerByLength(tt.args.length)
+				if tt.IntervalStart != nil {
+					assert.True(t, got >= *tt.IntervalStart && got < int(math.Pow10(tt.Interval)))
+				} else {
+					assert.True(t, got >= int(math.Pow10(tt.Interval-1)) && got < int(math.Pow10(tt.Interval)))
+				}
+			})
+		}
+	}
+}
+
+func TestMockValue(t *testing.T) {
+	type args struct {
+		mockType string
+	}
+	tests := []struct {
+		name string
+		args args
+	}{
+		{
+			name: "test_integer_n",
+			args: args{
+				mockType: "integer_n",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := MockValue(tt.args.mockType)
+			assert.True(t, got != nil && got != "")
+		})
+	}
 }
