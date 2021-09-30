@@ -402,6 +402,26 @@ func (v *Volume) UnmarshalYAML(unmarshal func(interface{}) error) error {
 // 	return r, nil
 // }
 
+type SelectorJson Selector
+
+func (sl Selector) MarshalJSON() ([]byte, error) {
+	var selectorJson SelectorJson
+	selectorJson.Values = sl.Values
+	selectorJson.Not = sl.Not
+	return json.Marshal(selectorJson)
+}
+
+func (sl *Selector) UnmarshalJSON(b []byte) error {
+	var selectorJson SelectorJson
+	err := json.Unmarshal(b, &selectorJson)
+	if err != nil {
+		return err
+	}
+	sl.Not = selectorJson.Not
+	sl.Values = selectorJson.Values
+	return nil
+}
+
 func (sl *Selector) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	var slstr string
 	if err := unmarshal(&slstr); err != nil {

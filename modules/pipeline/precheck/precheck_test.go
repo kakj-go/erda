@@ -15,54 +15,85 @@
 package precheck
 
 import (
+	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/modules/pipeline/precheck/prechecktype"
 )
 
 func TestPrecheck(t *testing.T) {
 	ctx := prechecktype.InitContext()
 	yamlByte := []byte(`
-version: 1.1
+version: "1.1"
 stages:
-- stage:
-  - release:
-      params:
-        cross_cluster: false
+  - stage:
+      - git-checkout:
+          alias: git-checkout
+          description: 代码仓库克隆
+  - stage:
+      - golang:
+          alias: go-demo
+          description: golang action
+          params:
+            command: GOPROXY=https://goproxy.io,direct go build -o web-server main.go
+            context: ${git-checkout}
+            service: web-server
+            target: web-server
+  - stage:
+      - release:
+          alias: release
+          description: 用于打包完成时，向dicehub 提交完整可部署的dice.yml。用户若没在pipeline.yml里定义该action，CI会自动在pipeline.yml里插入该action
+          params:
+            dice_yml: ${git-checkout}/dice.yml
+            image:
+              go-demo: ${go-demo:OUTPUT:image}
+  - stage:
+      - dice:
+          alias: dice
+          description: 用于 dice 平台部署应用服务
+          params:
+            release_id: ${release:OUTPUT:releaseID}
+
 `)
 	items := prechecktype.ItemsForCheck{
 		PipelineYml: "",
 		Files: map[string]string{
 			"dice.yml": `
-version: "2.0"
+version: '2.0'
 services:
-  java-demo:
+  go-demo:
     ports:
-      - 8080
-    expose:
-      - 8080
+      - port: 5000
+        expose: true
     resources:
-      cpu: 0.2
-      mem: 512
+      cpu: 0.5
+      mem: 500
     deployments:
       replicas: 1
+      selectors:
+        location: go-demo
+addons:
+  fdf:
+    plan: mysql:basic
+    options:
+      version: 5.7.29
+envs: {}
 `,
 		},
-		ActionSpecs: map[string]apistructs.ActionSpec{
-			"release": {
-				Params: []apistructs.ActionSpecParam{
-					{
-						Name:     "cross_cluster",
-						Required: false,
-						Default:  true,
-					},
-				},
-			},
-		},
+		//ActionSpecs: map[string]apistructs.ActionSpec{
+		//	"release": {
+		//		Params: []apistructs.ActionSpecParam{
+		//			{
+		//				Name:     "cross_cluster",
+		//				Required: false,
+		//				Default:  true,
+		//			},
+		//		},
+		//	},
+		//},
 	}
-	_, _ = PreCheck(ctx, yamlByte, items)
-	assert.False(t, prechecktype.GetContextResult(ctx, prechecktype.CtxResultKeyCrossCluster).(bool))
+	ok, message := PreCheck(ctx, yamlByte, items)
+	fmt.Println(message)
+	fmt.Println(ok)
+	//assert.False(t, prechecktype.GetContextResult(ctx, prechecktype.CtxResultKeyCrossCluster).(bool))
 }
