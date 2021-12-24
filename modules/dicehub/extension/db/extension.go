@@ -148,6 +148,37 @@ func (client *ExtensionConfigDB) GetExtensionVersion(name string, version string
 	return &result, err
 }
 
+func (client *ExtensionConfigDB) ListExtensions(names []string) (map[string]Extension, error) {
+	var result []Extension
+	query := client.Model(&Extension{}).Where("public = ? and name in (?)", true, names)
+	err := query.Find(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var extensions = map[string]Extension{}
+	for _, ext := range result {
+		extensions[ext.Name] = ext
+	}
+	return extensions, err
+}
+
+func (client *ExtensionConfigDB) ListExtensionVersions(names []string) (map[string][]ExtensionVersion, error) {
+	var result []ExtensionVersion
+	query := client.Model(&ExtensionVersion{}).Where("name in (?) and public = ?", names, true).Order("version desc")
+	err := query.Find(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var extensions = map[string][]ExtensionVersion{}
+	for _, extVersion := range result {
+		extensions[extVersion.Name] = append(extensions[extVersion.Name], extVersion)
+	}
+
+	return extensions, err
+}
+
 func (client *ExtensionConfigDB) GetExtensionDefaultVersion(name string) (*ExtensionVersion, error) {
 	var result ExtensionVersion
 	err := client.Model(&ExtensionVersion{}).

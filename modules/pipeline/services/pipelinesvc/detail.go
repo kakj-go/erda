@@ -255,7 +255,7 @@ func (s *PipelineSvc) setPipelineTaskActionDetail(detail *apistructs.PipelineDet
 		if task.Type == apistructs.ActionTypeSnippet {
 			return
 		}
-		extensionSearchRequest.Extensions = append(extensionSearchRequest.Extensions, task.Type)
+		extensionSearchRequest.Extensions = append(extensionSearchRequest.Extensions, fullName(task.Type, task.Extra.ActionInfo.ActionVersion))
 	})
 	if extensionSearchRequest.Extensions != nil {
 		extensionSearchRequest.Extensions = strutil.DedupSlice(extensionSearchRequest.Extensions, true)
@@ -280,7 +280,7 @@ func (s *PipelineSvc) setPipelineTaskActionDetail(detail *apistructs.PipelineDet
 			return
 		}
 
-		version, ok := resultMap[task.Type]
+		version, ok := resultMap[fullName(task.Type, task.Extra.ActionInfo.ActionVersion)]
 		if !ok {
 			return
 		}

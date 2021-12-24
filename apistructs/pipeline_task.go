@@ -54,9 +54,14 @@ type PipelineTaskDTO struct {
 }
 
 type PipelineTaskExtra struct {
-	UUID           string          `json:"uuid"`
-	AllowFailure   bool            `json:"allowFailure"`
-	TaskContainers []TaskContainer `json:"taskContainers"`
+	UUID           string                      `json:"uuid"`
+	AllowFailure   bool                        `json:"allowFailure"`
+	TaskContainers []TaskContainer             `json:"taskContainers"`
+	ActionInfo     PipelineTaskExtraActionInfo `json:"actionInfo"`
+}
+
+type PipelineTaskExtraActionInfo struct {
+	ActionVersion string `json:"version"`
 }
 
 type TaskContainer struct {

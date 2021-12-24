@@ -31,8 +31,11 @@ import (
 	election "github.com/erda-project/erda-infra/providers/etcd-election"
 	pb "github.com/erda-project/erda-proto-go/core/dicehub/extension/pb"
 	"github.com/erda-project/erda/bundle"
+	"github.com/erda-project/erda/modules/dicehub/dbclient"
 	"github.com/erda-project/erda/modules/dicehub/extension/db"
+	"github.com/erda-project/erda/modules/dicehub/service/extension"
 	"github.com/erda-project/erda/pkg/common/apis"
+	"github.com/erda-project/erda/pkg/database/dbengine"
 )
 
 type config struct {
@@ -99,11 +102,17 @@ func (p *provider) InitSources() error {
 }
 
 func (p *provider) newExtensionService() {
+	ext := extension.New(
+		extension.WithDBClient(&dbclient.DBClient{DBEngine: &dbengine.DBEngine{
+			DB: p.DB,
+		}}),
+	)
 	p.extensionService = &extensionService{
 		p:             p,
 		db:            &db.ExtensionConfigDB{DB: p.DB},
 		bdl:           bundle.New(bundle.WithCoreServices()),
 		extensionMenu: p.Cfg.ExtensionMenu,
+		ext:           ext,
 	}
 }
 

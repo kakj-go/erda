@@ -154,6 +154,37 @@ func (client *DBClient) QueryExtensions(all string, typ string, labels string) (
 	return result, err
 }
 
+func (client *DBClient) ListExtensions(names []string) (map[string]Extension, error) {
+	var result []Extension
+	query := client.Debug().Model(&Extension{}).Where("public = ? and name in (?)", true, names)
+	err := query.Find(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var extensions = map[string]Extension{}
+	for _, ext := range result {
+		extensions[ext.Name] = ext
+	}
+	return extensions, err
+}
+
+func (client *DBClient) ListExtensionVersions(names []string) (map[string][]ExtensionVersion, error) {
+	var result []ExtensionVersion
+	query := client.Debug().Model(&ExtensionVersion{}).Where("name in (?) and public = ?", names, true).Order("version desc")
+	err := query.Find(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	var extensions = map[string][]ExtensionVersion{}
+	for _, extVersion := range result {
+		extensions[extVersion.Name] = append(extensions[extVersion.Name], extVersion)
+	}
+
+	return extensions, err
+}
+
 func (client *DBClient) GetExtension(name string) (*Extension, error) {
 	var result Extension
 	err := client.Model(&Extension{}).Where("name = ?", name).Find(&result).Error

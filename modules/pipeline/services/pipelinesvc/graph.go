@@ -15,6 +15,9 @@
 package pipelinesvc
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
@@ -49,13 +52,12 @@ func (s *PipelineSvc) loadGraphActionNameAndLogo(graph *apistructs.PipelineYml) 
 			if action.Type == apistructs.ActionTypeSnippet {
 				continue
 			}
-			extensionSearchRequest.Extensions = append(extensionSearchRequest.Extensions, action.Type)
+			extensionSearchRequest.Extensions = append(extensionSearchRequest.Extensions, fullName(action.Type, action.Version))
 		}
 	}
 	if extensionSearchRequest.Extensions != nil {
 		extensionSearchRequest.Extensions = strutil.DedupSlice(extensionSearchRequest.Extensions, true)
 	}
-
 	resultMap, err := s.bdl.SearchExtensions(extensionSearchRequest)
 	if err != nil {
 		logrus.Errorf("pipelineYmlGraph to SearchExtensions error: %v", err)
@@ -70,7 +72,7 @@ func (s *PipelineSvc) loadGraphActionNameAndLogo(graph *apistructs.PipelineYml) 
 				continue
 			}
 
-			version, ok := resultMap[action.Type]
+			version, ok := resultMap[fullName(action.Type, action.Version)]
 			if !ok {
 				continue
 			}
@@ -91,4 +93,11 @@ func (s *PipelineSvc) loadGraphActionNameAndLogo(graph *apistructs.PipelineYml) 
 			action.Description = actionSpec.Desc
 		}
 	}
+}
+
+func fullName(name string, version string) string {
+	if version == "" {
+		return name
+	}
+	return fmt.Sprintf("%v@%v", name, version)
 }

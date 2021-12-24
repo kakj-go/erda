@@ -16,6 +16,7 @@ package extension
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -94,45 +95,130 @@ func (i *Extension) SearchExtensions(req apistructs.ExtensionSearchRequest) (map
 		mp map[string]*apistructs.ExtensionVersion
 		sync.RWMutex
 	}{mp: make(map[string]*apistructs.ExtensionVersion)}
-	var wg sync.WaitGroup
-	wg.Add(len(req.Extensions))
+
+	var httpExtensions []apistructs.ExtensionVersion
+	var versionExtensions []apistructs.ExtensionVersion
 	for _, fullName := range req.Extensions {
-		go func(fnm string) {
-			defer wg.Done()
-			splits := strings.SplitN(fnm, "@", 2)
-			name := splits[0]
-			version := ""
-			if len(splits) > 1 {
-				version = splits[1]
-			}
-			if version == "" {
-				extVersion, _ := i.GetExtensionDefaultVersion(name, req.YamlFormat)
-				result.Lock()
-				result.mp[fnm] = extVersion
-				result.Unlock()
-			} else if strings.HasPrefix(version, "https://") || strings.HasPrefix(version, "http://") {
-				extensionVersion, err := i.GetExtensionByGit(name, version, "spec.yml", "dice.yml", "README.md")
-				result.Lock()
-				if err != nil {
-					result.mp[fnm] = nil
-				} else {
-					result.mp[fnm] = extensionVersion
-				}
-				result.Unlock()
-			} else {
-				extensionVersion, err := i.GetExtensionVersion(name, version, req.YamlFormat)
-				result.Lock()
-				if err != nil {
-					result.mp[fnm] = nil
-				} else {
-					result.mp[fnm] = extensionVersion
-				}
-				result.Unlock()
-			}
-		}(fullName)
+		splits := strings.SplitN(fullName, "@", 2)
+		name := splits[0]
+		version := ""
+		if len(splits) > 1 {
+			version = splits[1]
+		}
+		if version == "" {
+			versionExtensions = append(versionExtensions, apistructs.ExtensionVersion{
+				Name: name,
+			})
+		} else if strings.HasPrefix(version, "https://") || strings.HasPrefix(version, "http://") {
+			httpExtensions = append(httpExtensions, apistructs.ExtensionVersion{
+				Name:    name,
+				Version: version,
+			})
+		} else {
+			versionExtensions = append(versionExtensions, apistructs.ExtensionVersion{
+				Name:    name,
+				Version: version,
+			})
+		}
 	}
-	wg.Wait()
+
+	var wait sync.WaitGroup
+	var errInfo error
+	wait.Add(1)
+	go func() {
+		defer wait.Done()
+		for _, httpExtension := range httpExtensions {
+			wait.Add(1)
+			go func(httpExtension apistructs.ExtensionVersion) {
+				defer wait.Done()
+				extensionVersion, err := i.GetExtensionByGit(httpExtension.Name, httpExtension.Version, "spec.yml", "dice.yml", "README.md")
+				result.Lock()
+				if err != nil {
+					result.mp[fullName(httpExtension.Name, httpExtension.Version)] = nil
+					errInfo = err
+				} else {
+					result.mp[fullName(httpExtension.Name, httpExtension.Version)] = extensionVersion
+				}
+				result.Unlock()
+			}(httpExtension)
+		}
+	}()
+
+	wait.Add(1)
+	go func() {
+		defer wait.Done()
+		var names []string
+		for _, extension := range versionExtensions {
+			names = append(names, extension.Name)
+		}
+
+		if len(names) == 0 {
+			return
+		}
+
+		extensionMap, err := i.db.ListExtensions(names)
+		if err != nil {
+			errInfo = err
+			return
+		}
+
+		extensionVersionMap, err := i.db.ListExtensionVersions(names)
+		if err != nil {
+			errInfo = err
+			return
+		}
+
+		for _, extension := range versionExtensions {
+			_, ok := extensionMap[extension.Name]
+			if !ok {
+				errInfo = fmt.Errorf("not find name %v extension", extension.Name)
+				return
+			}
+
+			_, ok = extensionVersionMap[extension.Name]
+			if !ok {
+				errInfo = fmt.Errorf("not find name %v extensionVersion", extension.Name)
+				return
+			}
+
+			var defaultVersion dbclient.ExtensionVersion
+			if extension.Version == "" {
+				for _, extensionVersion := range extensionVersionMap[extension.Name] {
+					if extensionVersion.IsDefault {
+						defaultVersion = extensionVersion
+						break
+					}
+				}
+				if defaultVersion.ID <= 0 {
+					defaultVersion = extensionVersionMap[extension.Name][0]
+				}
+			} else {
+				for _, extensionVersion := range extensionVersionMap[extension.Name] {
+					if extensionVersion.Version == extension.Version {
+						defaultVersion = extensionVersion
+						break
+					}
+				}
+			}
+			result.Lock()
+			result.mp[fullName(extension.Name, extension.Version)] = defaultVersion.ToApiData(extensionMap[extension.Name].Type, req.YamlFormat)
+			result.Unlock()
+		}
+	}()
+	wait.Wait()
+
+	if errInfo != nil {
+		return nil, errInfo
+	}
+
 	return result.mp, nil
+}
+
+func fullName(name string, version string) string {
+	if version == "" {
+		return name
+	}
+	return fmt.Sprintf("%v@%v", name, version)
 }
 
 // QueryExtensions 查询Extension列表

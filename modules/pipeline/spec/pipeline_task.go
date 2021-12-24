@@ -215,6 +215,9 @@ func (pt *PipelineTask) Convert2DTO() *apistructs.PipelineTaskDTO {
 			UUID:           pt.Extra.UUID,
 			AllowFailure:   pt.Extra.AllowFailure,
 			TaskContainers: pt.Extra.TaskContainers,
+			ActionInfo: apistructs.PipelineTaskExtraActionInfo{
+				ActionVersion: pt.Extra.Action.Version,
+			},
 		},
 		Labels:       pt.Extra.Action.Labels,
 		CostTimeSec:  pt.CostTimeSec,

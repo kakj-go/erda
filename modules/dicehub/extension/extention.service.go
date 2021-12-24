@@ -17,7 +17,9 @@ package extension
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/Masterminds/semver"
 	"github.com/jinzhu/gorm"
@@ -32,6 +34,7 @@ import (
 	"github.com/erda-project/erda/bundle"
 	"github.com/erda-project/erda/modules/dicehub/extension/db"
 	"github.com/erda-project/erda/modules/dicehub/service/apierrors"
+	"github.com/erda-project/erda/modules/dicehub/service/extension"
 	"github.com/erda-project/erda/pkg/common/apis"
 )
 
@@ -40,31 +43,158 @@ type extensionService struct {
 	db            *db.ExtensionConfigDB
 	bdl           *bundle.Bundle
 	extensionMenu map[string][]string
+	ext           *extension.Extension
 }
 
 func (s *extensionService) SearchExtensions(ctx context.Context, req *pb.ExtensionSearchRequest) (*pb.ExtensionSearchResponse, error) {
-	result := map[string]*pb.ExtensionVersion{}
+	result := struct {
+		mp map[string]*pb.ExtensionVersion
+		sync.RWMutex
+	}{mp: make(map[string]*pb.ExtensionVersion)}
+
+	var httpExtensions []apistructs.ExtensionVersion
+	var versionExtensions []apistructs.ExtensionVersion
 	for _, fullName := range req.Extensions {
-		splits := strings.Split(fullName, "@")
+		splits := strings.SplitN(fullName, "@", 2)
 		name := splits[0]
 		version := ""
 		if len(splits) > 1 {
 			version = splits[1]
 		}
 		if version == "" {
-			extVersion, _ := s.GetExtensionDefaultVersion(name, req.YamlFormat)
-			result[fullName] = extVersion
+			versionExtensions = append(versionExtensions, apistructs.ExtensionVersion{
+				Name: name,
+			})
+		} else if strings.HasPrefix(version, "https://") || strings.HasPrefix(version, "http://") {
+			httpExtensions = append(httpExtensions, apistructs.ExtensionVersion{
+				Name:    name,
+				Version: version,
+			})
 		} else {
-			extensionVersion, err := s.GetExtension(name, version, req.YamlFormat)
-			if err != nil {
-				result[fullName] = nil
-			} else {
-				result[fullName] = extensionVersion
-			}
+			versionExtensions = append(versionExtensions, apistructs.ExtensionVersion{
+				Name:    name,
+				Version: version,
+			})
 		}
 	}
 
-	return &pb.ExtensionSearchResponse{Data: result}, nil
+	var wait sync.WaitGroup
+	var errInfo error
+	wait.Add(1)
+	go func() {
+		defer wait.Done()
+		for _, httpExtension := range httpExtensions {
+			wait.Add(1)
+			go func(httpExtension apistructs.ExtensionVersion) {
+				defer wait.Done()
+				extensionVersion, err := s.ext.GetExtensionByGit(httpExtension.Name, httpExtension.Version, "spec.yml", "dice.yml", "README.md")
+				result.Lock()
+				if err != nil {
+					result.mp[fullName(httpExtension.Name, httpExtension.Version)] = nil
+					errInfo = err
+				} else {
+					var apiVersion = db.ExtensionVersion{
+						Name:      extensionVersion.Name,
+						Version:   extensionVersion.Version,
+						Spec:      extensionVersion.Spec.(string),
+						Dice:      extensionVersion.Dice.(string),
+						Swagger:   extensionVersion.Swagger.(string),
+						Readme:    extensionVersion.Readme,
+						Public:    extensionVersion.Public,
+						IsDefault: extensionVersion.IsDefault,
+					}
+					value, err := apiVersion.ToApiData(extensionVersion.Type, req.YamlFormat)
+					if err != nil {
+						errInfo = err
+						return
+					}
+					result.mp[fullName(httpExtension.Name, httpExtension.Version)] = value
+				}
+				result.Unlock()
+			}(httpExtension)
+		}
+	}()
+
+	wait.Add(1)
+	go func() {
+		defer wait.Done()
+		var names []string
+		for _, extension := range versionExtensions {
+			names = append(names, extension.Name)
+		}
+
+		if len(names) == 0 {
+			return
+		}
+
+		extensionMap, err := s.db.ListExtensions(names)
+		if err != nil {
+			errInfo = err
+			return
+		}
+
+		extensionVersionMap, err := s.db.ListExtensionVersions(names)
+		if err != nil {
+			errInfo = err
+			return
+		}
+
+		for _, extension := range versionExtensions {
+			_, ok := extensionMap[extension.Name]
+			if !ok {
+				errInfo = fmt.Errorf("not find name %v extension", extension.Name)
+				return
+			}
+
+			_, ok = extensionVersionMap[extension.Name]
+			if !ok {
+				errInfo = fmt.Errorf("not find name %v extensionVersion", extension.Name)
+				return
+			}
+
+			var defaultVersion db.ExtensionVersion
+			if extension.Version == "" {
+				for _, extensionVersion := range extensionVersionMap[extension.Name] {
+					if extensionVersion.IsDefault {
+						defaultVersion = extensionVersion
+						break
+					}
+				}
+				if defaultVersion.ID <= 0 {
+					defaultVersion = extensionVersionMap[extension.Name][0]
+				}
+			} else {
+				for _, extensionVersion := range extensionVersionMap[extension.Name] {
+					if extensionVersion.Version == extension.Version {
+						defaultVersion = extensionVersion
+						break
+					}
+				}
+			}
+			result.Lock()
+			apiVersion, err := defaultVersion.ToApiData(extensionMap[extension.Name].Type, req.YamlFormat)
+			if err != nil {
+				errInfo = err
+				return
+			}
+			result.mp[fullName(extension.Name, extension.Version)] = apiVersion
+			result.Unlock()
+		}
+	}()
+	wait.Wait()
+
+	if errInfo != nil {
+		return nil, errInfo
+	}
+
+	return &pb.ExtensionSearchResponse{Data: result.mp}, nil
+}
+
+func fullName(name string, version string) string {
+	if version == "" {
+		return name
+	}
+	return fmt.Sprintf("%v@%v", name, version)
 }
 
 func (s *extensionService) CreateExtension(ctx context.Context, req *pb.ExtensionCreateRequest) (*pb.ExtensionCreateResponse, error) {
