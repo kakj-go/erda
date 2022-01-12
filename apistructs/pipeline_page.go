@@ -49,10 +49,10 @@ type PagePipeline struct {
 	TimeUpdated *time.Time `json:"timeUpdated,omitempty"` // 记录更新时间
 
 	// definition info
-	DefinitionPageInfo *DefinitionPageInfo `json:"definitionPageInfo,omitempty"`
+	DefinitionInfo *DefinitionInfo `json:"definitionInfo,omitempty"`
 }
 
-type DefinitionPageInfo struct {
+type DefinitionInfo struct {
 	Name         string `json:"name,omitempty"`
 	Creator      string `json:"creator,omitempty"`
 	SourceRemote string `json:"sourceRemote,omitempty"`

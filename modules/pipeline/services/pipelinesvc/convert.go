@@ -135,12 +135,12 @@ func (s *PipelineSvc) Convert2PagePipeline(p *spec.Pipeline) *apistructs.PagePip
 		}
 	}
 	if p.Definition != nil && p.Source != nil {
-		definitionPageInfo := &apistructs.DefinitionPageInfo{}
-		definitionPageInfo.Name = p.Definition.Name
-		definitionPageInfo.Creator = p.Definition.Creator
-		definitionPageInfo.SourceRef = p.Source.Ref
-		definitionPageInfo.SourceRemote = p.Source.Remote
-		result.DefinitionPageInfo = definitionPageInfo
+		definitionInfo := &apistructs.DefinitionInfo{}
+		definitionInfo.Name = p.Definition.Name
+		definitionInfo.Creator = p.Definition.Creator
+		definitionInfo.SourceRef = p.Source.Ref
+		definitionInfo.SourceRemote = p.Source.Remote
+		result.DefinitionInfo = definitionInfo
 	}
 	return &result
 }
