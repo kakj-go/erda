@@ -26,6 +26,7 @@ type SourceServiceClient interface {
 	Delete(ctx context.Context, in *PipelineSourceDeleteRequest, opts ...grpc.CallOption) (*PipelineSourceDeleteResponse, error)
 	Get(ctx context.Context, in *PipelineSourceGetRequest, opts ...grpc.CallOption) (*PipelineSourceGetResponse, error)
 	List(ctx context.Context, in *PipelineSourceListRequest, opts ...grpc.CallOption) (*PipelineSourceListResponse, error)
+	Save(ctx context.Context, in *PipelineSourceSaveRequest, opts ...grpc.CallOption) (*PipelineSourceSaveResponse, error)
 }
 
 type sourceServiceClient struct {
@@ -81,6 +82,15 @@ func (c *sourceServiceClient) List(ctx context.Context, in *PipelineSourceListRe
 	return out, nil
 }
 
+func (c *sourceServiceClient) Save(ctx context.Context, in *PipelineSourceSaveRequest, opts ...grpc.CallOption) (*PipelineSourceSaveResponse, error) {
+	out := new(PipelineSourceSaveResponse)
+	err := c.cc.Invoke(ctx, "/erda.core.pipeline.source.SourceService/Save", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SourceServiceServer is the server API for SourceService service.
 // All implementations should embed UnimplementedSourceServiceServer
 // for forward compatibility
@@ -90,6 +100,7 @@ type SourceServiceServer interface {
 	Delete(context.Context, *PipelineSourceDeleteRequest) (*PipelineSourceDeleteResponse, error)
 	Get(context.Context, *PipelineSourceGetRequest) (*PipelineSourceGetResponse, error)
 	List(context.Context, *PipelineSourceListRequest) (*PipelineSourceListResponse, error)
+	Save(context.Context, *PipelineSourceSaveRequest) (*PipelineSourceSaveResponse, error)
 }
 
 // UnimplementedSourceServiceServer should be embedded to have forward compatible implementations.
@@ -110,6 +121,9 @@ func (*UnimplementedSourceServiceServer) Get(context.Context, *PipelineSourceGet
 }
 func (*UnimplementedSourceServiceServer) List(context.Context, *PipelineSourceListRequest) (*PipelineSourceListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method List not implemented")
+}
+func (*UnimplementedSourceServiceServer) Save(context.Context, *PipelineSourceSaveRequest) (*PipelineSourceSaveResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Save not implemented")
 }
 
 func RegisterSourceServiceServer(s grpc1.ServiceRegistrar, srv SourceServiceServer, opts ...grpc1.HandleOption) {
@@ -173,6 +187,15 @@ func _get_SourceService_serviceDesc(srv SourceServiceServer, opts ...grpc1.Handl
 	if h.Interceptor != nil {
 		_SourceService_List_info = transport.NewServiceInfo("erda.core.pipeline.source.SourceService", "List", srv)
 		_SourceService_List_Handler = h.Interceptor(_SourceService_List_Handler)
+	}
+
+	_SourceService_Save_Handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.Save(ctx, req.(*PipelineSourceSaveRequest))
+	}
+	var _SourceService_Save_info transport.ServiceInfo
+	if h.Interceptor != nil {
+		_SourceService_Save_info = transport.NewServiceInfo("erda.core.pipeline.source.SourceService", "Save", srv)
+		_SourceService_Save_Handler = h.Interceptor(_SourceService_Save_Handler)
 	}
 
 	var serviceDesc = _SourceService_serviceDesc
@@ -290,6 +313,29 @@ func _get_SourceService_serviceDesc(srv SourceServiceServer, opts ...grpc1.Handl
 					FullMethod: "/erda.core.pipeline.source.SourceService/List",
 				}
 				return interceptor(ctx, in, info, _SourceService_List_Handler)
+			},
+		},
+		{
+			MethodName: "Save",
+			Handler: func(_ interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+				in := new(PipelineSourceSaveRequest)
+				if err := dec(in); err != nil {
+					return nil, err
+				}
+				if interceptor == nil && h.Interceptor == nil {
+					return srv.(SourceServiceServer).Save(ctx, in)
+				}
+				if h.Interceptor != nil {
+					ctx = context.WithValue(ctx, transport.ServiceInfoContextKey, _SourceService_Save_info)
+				}
+				if interceptor == nil {
+					return _SourceService_Save_Handler(ctx, in)
+				}
+				info := &grpc.UnaryServerInfo{
+					Server:     srv,
+					FullMethod: "/erda.core.pipeline.source.SourceService/Save",
+				}
+				return interceptor(ctx, in, info, _SourceService_Save_Handler)
 			},
 		},
 	}

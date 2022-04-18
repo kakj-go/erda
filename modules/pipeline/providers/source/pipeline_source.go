@@ -16,7 +16,6 @@ package source
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/erda-project/erda-proto-go/core/pipeline/source/pb"
@@ -28,44 +27,19 @@ type pipelineSource struct {
 }
 
 func (p pipelineSource) Create(ctx context.Context, request *pb.PipelineSourceCreateRequest) (*pb.PipelineSourceCreateResponse, error) {
-	unique := &db.PipelineSourceUnique{
+	result, err := p.Save(ctx, &pb.PipelineSourceSaveRequest{
 		SourceType: request.SourceType,
 		Remote:     request.Remote,
 		Ref:        request.Ref,
 		Path:       request.Path,
 		Name:       request.Name,
-	}
-
-	var (
-		source *db.PipelineSource
-		err    error
-	)
-
-	sources, err := p.dbClient.GetPipelineSourceByUnique(unique)
+		PipelineYml: request.PipelineYml,
+	})
 	if err != nil {
 		return nil, err
 	}
-	if len(sources) > 1 {
-		return nil, fmt.Errorf("the pipeline source is not unique")
-	}
 
-	if len(sources) == 1 {
-		return &pb.PipelineSourceCreateResponse{PipelineSource: sources[0].Convert()}, nil
-	}
-
-	source = &db.PipelineSource{
-		SourceType:  request.SourceType,
-		Remote:      request.Remote,
-		Ref:         request.Ref,
-		Path:        request.Path,
-		Name:        request.Name,
-		PipelineYml: request.PipelineYml,
-		VersionLock: request.VersionLock,
-	}
-	if err = p.dbClient.CreatePipelineSource(source); err != nil {
-		return nil, err
-	}
-	return &pb.PipelineSourceCreateResponse{PipelineSource: source.Convert()}, nil
+	return &pb.PipelineSourceCreateResponse{PipelineSource: result.PipelineSource}, nil
 }
 
 func (p pipelineSource) Update(ctx context.Context, request *pb.PipelineSourceUpdateRequest) (*pb.PipelineSourceUpdateResponse, error) {
@@ -131,4 +105,42 @@ func (p pipelineSource) List(ctx context.Context, request *pb.PipelineSourceList
 	}
 
 	return &pb.PipelineSourceListResponse{Data: data}, nil
+}
+
+func (p pipelineSource) Save(ctx context.Context, request *pb.PipelineSourceSaveRequest) (*pb.PipelineSourceSaveResponse, error) {
+	unique := &db.PipelineSourceUnique{
+		SourceType: request.SourceType,
+		Remote:     request.Remote,
+		Ref:        request.Ref,
+		Path:       request.Path,
+		Name:       request.Name,
+	}
+
+	sources, err := p.dbClient.GetPipelineSourceByUnique(unique)
+	if err != nil {
+		return nil, err
+	}
+
+	var source *db.PipelineSource
+	if len(sources) > 1 {
+		source = &sources[0]
+		source.PipelineYml = request.PipelineYml
+		err = p.dbClient.UpdatePipelineSource(source.ID, source)
+		if err != nil {
+			return nil, err
+		}
+	}else{
+		source = &db.PipelineSource{
+			SourceType:  request.SourceType,
+			Remote:      request.Remote,
+			Ref:         request.Ref,
+			Path:        request.Path,
+			Name:        request.Name,
+			PipelineYml: request.PipelineYml,
+		}
+		if err = p.dbClient.CreatePipelineSource(source); err != nil {
+			return nil, err
+		}
+	}
+	return &pb.PipelineSourceSaveResponse{PipelineSource: source.Convert()}, nil
 }

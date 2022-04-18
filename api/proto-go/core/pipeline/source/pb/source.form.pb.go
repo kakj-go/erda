@@ -24,6 +24,8 @@ var _ urlenc.URLValuesUnmarshaler = (*PipelineSourceGetRequest)(nil)
 var _ urlenc.URLValuesUnmarshaler = (*PipelineSourceGetResponse)(nil)
 var _ urlenc.URLValuesUnmarshaler = (*PipelineSourceListRequest)(nil)
 var _ urlenc.URLValuesUnmarshaler = (*PipelineSourceListResponse)(nil)
+var _ urlenc.URLValuesUnmarshaler = (*PipelineSourceSaveRequest)(nil)
+var _ urlenc.URLValuesUnmarshaler = (*PipelineSourceSaveResponse)(nil)
 
 // PipelineSource implement urlenc.URLValuesUnmarshaler.
 func (m *PipelineSource) UnmarshalURLValues(prefix string, values url.Values) error {
@@ -613,6 +615,159 @@ func (m *PipelineSourceListResponse) UnmarshalURLValues(prefix string, values ur
 					return err
 				}
 				m.Total = val
+			}
+		}
+	}
+	return nil
+}
+
+// PipelineSourceSaveRequest implement urlenc.URLValuesUnmarshaler.
+func (m *PipelineSourceSaveRequest) UnmarshalURLValues(prefix string, values url.Values) error {
+	for key, vals := range values {
+		if len(vals) > 0 {
+			switch prefix + key {
+			case "sourceType":
+				m.SourceType = vals[0]
+			case "remote":
+				m.Remote = vals[0]
+			case "ref":
+				m.Ref = vals[0]
+			case "path":
+				m.Path = vals[0]
+			case "name":
+				m.Name = vals[0]
+			case "pipelineYml":
+				m.PipelineYml = vals[0]
+			}
+		}
+	}
+	return nil
+}
+
+// PipelineSourceSaveResponse implement urlenc.URLValuesUnmarshaler.
+func (m *PipelineSourceSaveResponse) UnmarshalURLValues(prefix string, values url.Values) error {
+	for key, vals := range values {
+		if len(vals) > 0 {
+			switch prefix + key {
+			case "pipelineSource":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+			case "pipelineSource.ID":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.ID = vals[0]
+			case "pipelineSource.sourceType":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.SourceType = vals[0]
+			case "pipelineSource.remote":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.Remote = vals[0]
+			case "pipelineSource.ref":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.Ref = vals[0]
+			case "pipelineSource.path":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.Path = vals[0]
+			case "pipelineSource.name":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.Name = vals[0]
+			case "pipelineSource.pipelineYml":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				m.PipelineSource.PipelineYml = vals[0]
+			case "pipelineSource.versionLock":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				val, err := strconv.ParseUint(vals[0], 10, 64)
+				if err != nil {
+					return err
+				}
+				m.PipelineSource.VersionLock = val
+			case "pipelineSource.softDeletedAt":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				val, err := strconv.ParseInt(vals[0], 10, 64)
+				if err != nil {
+					return err
+				}
+				m.PipelineSource.SoftDeletedAt = val
+			case "pipelineSource.timeCreated":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				if m.PipelineSource.TimeCreated == nil {
+					m.PipelineSource.TimeCreated = &timestamppb.Timestamp{}
+				}
+			case "pipelineSource.timeCreated.seconds":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				if m.PipelineSource.TimeCreated == nil {
+					m.PipelineSource.TimeCreated = &timestamppb.Timestamp{}
+				}
+				val, err := strconv.ParseInt(vals[0], 10, 64)
+				if err != nil {
+					return err
+				}
+				m.PipelineSource.TimeCreated.Seconds = val
+			case "pipelineSource.timeCreated.nanos":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				if m.PipelineSource.TimeCreated == nil {
+					m.PipelineSource.TimeCreated = &timestamppb.Timestamp{}
+				}
+				val, err := strconv.ParseInt(vals[0], 10, 32)
+				if err != nil {
+					return err
+				}
+				m.PipelineSource.TimeCreated.Nanos = int32(val)
+			case "pipelineSource.timeUpdated":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				if m.PipelineSource.TimeUpdated == nil {
+					m.PipelineSource.TimeUpdated = &timestamppb.Timestamp{}
+				}
+			case "pipelineSource.timeUpdated.seconds":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				if m.PipelineSource.TimeUpdated == nil {
+					m.PipelineSource.TimeUpdated = &timestamppb.Timestamp{}
+				}
+				val, err := strconv.ParseInt(vals[0], 10, 64)
+				if err != nil {
+					return err
+				}
+				m.PipelineSource.TimeUpdated.Seconds = val
+			case "pipelineSource.timeUpdated.nanos":
+				if m.PipelineSource == nil {
+					m.PipelineSource = &PipelineSource{}
+				}
+				if m.PipelineSource.TimeUpdated == nil {
+					m.PipelineSource.TimeUpdated = &timestamppb.Timestamp{}
+				}
+				val, err := strconv.ParseInt(vals[0], 10, 32)
+				if err != nil {
+					return err
+				}
+				m.PipelineSource.TimeUpdated.Nanos = int32(val)
 			}
 		}
 	}

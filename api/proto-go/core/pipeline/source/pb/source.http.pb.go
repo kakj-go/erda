@@ -31,6 +31,8 @@ type SourceServiceHandler interface {
 	Get(context.Context, *PipelineSourceGetRequest) (*PipelineSourceGetResponse, error)
 	// GET /api/pipeline-sources
 	List(context.Context, *PipelineSourceListRequest) (*PipelineSourceListResponse, error)
+	// POST /api/pipeline-sources/action/save
+	Save(context.Context, *PipelineSourceSaveRequest) (*PipelineSourceSaveResponse, error)
 }
 
 // RegisterSourceServiceHandler register SourceServiceHandler to http.Router.
@@ -305,9 +307,46 @@ func RegisterSourceServiceHandler(r http.Router, srv SourceServiceHandler, opts 
 		)
 	}
 
+	add_Save := func(method, path string, fn func(context.Context, *PipelineSourceSaveRequest) (*PipelineSourceSaveResponse, error)) {
+		handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+			return fn(ctx, req.(*PipelineSourceSaveRequest))
+		}
+		var Save_info transport.ServiceInfo
+		if h.Interceptor != nil {
+			Save_info = transport.NewServiceInfo("erda.core.pipeline.source.SourceService", "Save", srv)
+			handler = h.Interceptor(handler)
+		}
+		r.Add(method, path, encodeFunc(
+			func(w http1.ResponseWriter, r *http1.Request) (interface{}, error) {
+				ctx := http.WithRequest(r.Context(), r)
+				ctx = transport.WithHTTPHeaderForServer(ctx, r.Header)
+				if h.Interceptor != nil {
+					ctx = context.WithValue(ctx, transport.ServiceInfoContextKey, Save_info)
+				}
+				r = r.WithContext(ctx)
+				var in PipelineSourceSaveRequest
+				if err := h.Decode(r, &in); err != nil {
+					return nil, err
+				}
+				var input interface{} = &in
+				if u, ok := (input).(urlenc.URLValuesUnmarshaler); ok {
+					if err := u.UnmarshalURLValues("", r.URL.Query()); err != nil {
+						return nil, err
+					}
+				}
+				out, err := handler(ctx, &in)
+				if err != nil {
+					return out, err
+				}
+				return out, nil
+			}),
+		)
+	}
+
 	add_Create("POST", "/api/pipeline-sources", srv.Create)
 	add_Update("PUT", "/api/pipeline-sources/{pipelineSourceID}", srv.Update)
 	add_Delete("DELETE", "/api/pipeline-sources/{pipelineSourceID}", srv.Delete)
 	add_Get("GET", "/api/pipeline-sources/{pipelineSourceID}", srv.Get)
 	add_List("GET", "/api/pipeline-sources", srv.List)
+	add_Save("POST", "/api/pipeline-sources/action/save", srv.Save)
 }

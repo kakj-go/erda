@@ -86,3 +86,14 @@ func (this *PipelineSourceListResponse) Validate() error {
 	}
 	return nil
 }
+func (this *PipelineSourceSaveRequest) Validate() error {
+	return nil
+}
+func (this *PipelineSourceSaveResponse) Validate() error {
+	if this.PipelineSource != nil {
+		if err := github_com_mwitkow_go_proto_validators.CallValidatorIfExists(this.PipelineSource); err != nil {
+			return github_com_mwitkow_go_proto_validators.FieldError("PipelineSource", err)
+		}
+	}
+	return nil
+}

@@ -56,3 +56,7 @@ func (s *sourceServiceWrapper) Get(ctx context.Context, req *pb.PipelineSourceGe
 func (s *sourceServiceWrapper) List(ctx context.Context, req *pb.PipelineSourceListRequest) (*pb.PipelineSourceListResponse, error) {
 	return s.client.List(ctx, req, append(grpc.CallOptionFromContext(ctx), s.opts...)...)
 }
+
+func (s *sourceServiceWrapper) Save(ctx context.Context, req *pb.PipelineSourceSaveRequest) (*pb.PipelineSourceSaveResponse, error) {
+	return s.client.Save(ctx, req, append(grpc.CallOptionFromContext(ctx), s.opts...)...)
+}

@@ -35,6 +35,10 @@ var _ json.Marshaler = (*PipelineSourceListRequest)(nil)
 var _ json.Unmarshaler = (*PipelineSourceListRequest)(nil)
 var _ json.Marshaler = (*PipelineSourceListResponse)(nil)
 var _ json.Unmarshaler = (*PipelineSourceListResponse)(nil)
+var _ json.Marshaler = (*PipelineSourceSaveRequest)(nil)
+var _ json.Unmarshaler = (*PipelineSourceSaveRequest)(nil)
+var _ json.Marshaler = (*PipelineSourceSaveResponse)(nil)
+var _ json.Unmarshaler = (*PipelineSourceSaveResponse)(nil)
 
 // PipelineSource implement json.Marshaler.
 func (m *PipelineSource) MarshalJSON() ([]byte, error) {
@@ -229,6 +233,42 @@ func (m *PipelineSourceListResponse) MarshalJSON() ([]byte, error) {
 
 // PipelineSourceListResponse implement json.Marshaler.
 func (m *PipelineSourceListResponse) UnmarshalJSON(b []byte) error {
+	return (&protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}).Unmarshal(b, m)
+}
+
+// PipelineSourceSaveRequest implement json.Marshaler.
+func (m *PipelineSourceSaveRequest) MarshalJSON() ([]byte, error) {
+	buf := &bytes.Buffer{}
+	err := (&jsonpb.Marshaler{
+		OrigName:     false,
+		EnumsAsInts:  false,
+		EmitDefaults: true,
+	}).Marshal(buf, m)
+	return buf.Bytes(), err
+}
+
+// PipelineSourceSaveRequest implement json.Marshaler.
+func (m *PipelineSourceSaveRequest) UnmarshalJSON(b []byte) error {
+	return (&protojson.UnmarshalOptions{
+		DiscardUnknown: true,
+	}).Unmarshal(b, m)
+}
+
+// PipelineSourceSaveResponse implement json.Marshaler.
+func (m *PipelineSourceSaveResponse) MarshalJSON() ([]byte, error) {
+	buf := &bytes.Buffer{}
+	err := (&jsonpb.Marshaler{
+		OrigName:     false,
+		EnumsAsInts:  false,
+		EmitDefaults: true,
+	}).Marshal(buf, m)
+	return buf.Bytes(), err
+}
+
+// PipelineSourceSaveResponse implement json.Marshaler.
+func (m *PipelineSourceSaveResponse) UnmarshalJSON(b []byte) error {
 	return (&protojson.UnmarshalOptions{
 		DiscardUnknown: true,
 	}).Unmarshal(b, m)

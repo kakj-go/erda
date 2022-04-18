@@ -37,8 +37,13 @@ service SourceService {
       get: "/api/pipeline-sources",
     };
   }
-}
 
+  rpc Save (PipelineSourceSaveRequest) returns (PipelineSourceSaveResponse) {
+    option (google.api.http) = {
+      post: "/api/pipeline-sources/action/save",
+    };
+  }
+}
 
 message PipelineSource {
   string ID = 1 [json_name = "id"];
@@ -112,4 +117,18 @@ message PipelineSourceListRequest {
 message PipelineSourceListResponse {
   int64 total = 1;
   repeated PipelineSource data = 2;
+}
+
+// save
+message  PipelineSourceSaveRequest {
+  string sourceType = 1;
+  string remote = 2;
+  string ref = 3;
+  string path = 4;
+  string name = 5;
+  string pipelineYml = 6;
+}
+
+message PipelineSourceSaveResponse {
+  PipelineSource pipelineSource = 1;
 }
