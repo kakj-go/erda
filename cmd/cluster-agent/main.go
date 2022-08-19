@@ -15,15 +15,19 @@
 package main
 
 import (
-	"github.com/erda-project/erda-infra/base/servicehub"
-	"github.com/erda-project/erda/pkg/common"
+	_ "embed"
 
+	"github.com/erda-project/erda-infra/base/servicehub"
 	_ "github.com/erda-project/erda-infra/providers"
-	_ "github.com/erda-project/erda/modules/cluster-agent"
+	_ "github.com/erda-project/erda/internal/tools/cluster-agent"
+	"github.com/erda-project/erda/pkg/common"
 )
+
+//go:embed bootstrap.yaml
+var bootstrapCfg string
 
 func main() {
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: "conf/cluster-agent/cluster-agent.yaml",
+		Content: bootstrapCfg,
 	})
 }

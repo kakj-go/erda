@@ -5,6 +5,8 @@ option go_package = "github.com/erda-project/erda-proto-go/core/hepa/endpoint_ap
 import "google/api/annotations.proto";
 import "google/protobuf/struct.proto";
 import "core/hepa/hepa.proto";
+import "common/http.proto";
+import "common/openapi.proto";
 
 // +publish service:"hepa"
 service EndpointApiService {
@@ -90,6 +92,48 @@ service EndpointApiService {
     };
   }
 
+  rpc ListInvalidEndpointApi(ListInvalidEndpointApiReq) returns(ListInvalidEndpointApiResp) {
+    option(google.api.http) = {
+      get: "/api/gateway/openapi/invalid-endpoints",
+    };
+    option(erda.common.openapi) = {
+      service: "hepa",
+      path: "/api/gateway/openapi/invalid-endpoints",
+    };
+  }
+
+  rpc ClearInvalidEndpointApi(ListInvalidEndpointApiReq) returns (common.VoidResponse) {
+    option(google.api.http) = {
+      delete: "/api/gateway/openapi/invalid-endpoints",
+    };
+    option(erda.common.openapi) = {
+      service: "hepa",
+      path: "/api/gateway/openapi/invalid-endpoints",
+    };
+  }
+
+  rpc ListAllCrontabs(common.VoidRequest) returns (ListAllCrontabsResp){
+    option(google.api.http) = {
+      get: "/api/gateway/openapi/crontabs",
+    };
+    option(erda.common.openapi) = {
+      service: "hepa",
+      path: "/api/gateway/openapi/crontabs",
+    };
+  }
+
+  rpc ListPackageApis(ListPackageApisReq) returns (ListPackageApisResp) {
+    option(google.api.http) = {
+      get: "/api/gateway/openapi/package-apis",
+    };
+  }
+
+  // +publish path: "/api/gateway/openapi/package-apis"
+  rpc DeletePackageApis(ListPackageApisReq) returns (DeletePackageApiResp) {
+    option(google.api.http) = {
+      delete: "/api/gateway/openapi/package-apis",
+    };
+  }
 }
 
 message ChangeEndpointRootResponse {
@@ -129,7 +173,7 @@ message EndpointApi {
   string redirectType = 2;
   string redirectAddr = 3;
   string redirectPath = 4;
-  string redirectApp = 5;  
+  string redirectApp = 5;
   string redirectService = 6;
   string redirectRuntimeId = 7;
   string redirectRuntimeName = 8;
@@ -234,4 +278,74 @@ message GetEndpointRequest {
 
 message GetEndpointResponse {
   Endpoint data = 1;
+}
+
+message ListInvalidEndpointApiReq {
+  string clusterName = 1;
+}
+
+message ListInvalidEndpointApiResp {
+  uint64 total = 1;
+  uint64 totalProjectIsInvalid = 2;
+  uint64 totalRuntimeIsInvalid = 3;
+  uint64 totalInnerAddrIsInvalid = 4;
+  repeated ListInvalidEndpointApiItem list = 5;
+}
+
+message ListInvalidEndpointApiItem {
+  string invalidReason = 1;
+  string type = 2;
+  string projectID = 3;
+  string packageID = 4;
+  string packageApiID = 5;
+  string runtimeID = 9;
+  string innerHostname = 10;
+  string kongRouteID = 11;
+  string kongServiceID = 12;
+  string clusterName = 13;
+  string routeDeleting = 15;
+  string serviceDeleting = 16;
+}
+
+message ListAllCrontabsResp {
+  int64 Total = 1;
+  repeated ListAllCrontabsRespItem list = 2;
+}
+
+message ListAllCrontabsRespItem {
+  string name = 1;
+  bool running = 2;
+  string lastTime = 3;
+  string nextTime = 4;
+  uint64 execTimes = 5;
+}
+message ListPackageApisReq {
+  string projectId = 1;
+  string env = 2;
+  string domain = 3;
+  string deleteMode = 4;
+  repeated ListPackageApiItem paths = 5;
+  string address = 6;
+}
+
+message ListPackageApiItem {
+  string path = 1;
+  string address = 2;
+}
+
+message ListPackageApisResp {
+  string packageId = 1;
+  uint64 total = 2;
+  repeated EndpointApi list = 3;
+}
+
+message DeletePackageApiResp {
+  string packageId = 1;
+  uint64 total = 2;
+  repeated DeletePackageApiRespPath list = 3;
+}
+
+message DeletePackageApiRespPath {
+  EndpointApi api = 1;
+  bool success = 2;
 }

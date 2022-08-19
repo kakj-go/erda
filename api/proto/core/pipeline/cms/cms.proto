@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package erda.core.pipeline.cms;
 
-import "github.com/mwitkow/go-proto-validators/validator.proto";
+import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
 import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 
@@ -36,6 +36,12 @@ service CmsService {
   rpc GetCmsNsConfigs (CmsNsConfigsGetRequest) returns (CmsNsConfigsGetResponse) {
     option (google.api.http) = {
       get: "/api/pipelines/cms/ns/{ns}",
+    };
+  }
+
+  rpc BatchGetCmsNsConfigs (CmsNsConfigsBatchGetRequest) returns (CmsNsConfigsBatchGetResponse) {
+    option (google.api.http) = {
+      get: "/api/pipelines/cms/actions/batch-get-configs",
     };
   }
 }
@@ -100,17 +106,18 @@ message PipelineCmsConfig {
   string from = 7;
   google.protobuf.Timestamp timeCreated = 8;
   google.protobuf.Timestamp timeUpdated = 9;
+  PipelineCmsNs ns = 10;
 }
 
 message CmsCreateNsRequest {
-  string pipelineSource = 1 [(validator.field) = {string_not_empty: true}];
-  string ns = 2 [(validator.field) = {string_not_empty: true}];
+  string pipelineSource = 1 [(validate.rules).string.min_len = 1];
+  string ns = 2 [(validate.rules).string.min_len = 1];
 }
 message CmsCreateNsResponse {
 }
 
 message CmsListNsRequest {
-  string pipelineSource = 1 [(validator.field) = {string_not_empty: true}];
+  string pipelineSource = 1 [(validate.rules).string.min_len = 1];
   string nsPrefix = 2;
 }
 message CmsListNsResponse {
@@ -119,7 +126,7 @@ message CmsListNsResponse {
 
 message CmsNsConfigsUpdateRequest {
   string ns = 1;
-  string pipeline_source = 2 [(validator.field) = {string_not_empty: true}];
+  string pipeline_source = 2 [(validate.rules).string.min_len = 1];
   map<string, PipelineCmsConfigValue> KVs = 3 [json_name="kvs"];
 }
 message CmsNsConfigsUpdateV1Request {
@@ -131,7 +138,7 @@ message CmsNsConfigsUpdateResponse {
 
 message CmsNsConfigsDeleteRequest {
   string ns = 1;
-  string pipelineSource = 2 [(validator.field) = {string_not_empty: true}];
+  string pipelineSource = 2 [(validate.rules).string.min_len = 1];
   // Use custom json_name option `deleteNS` for backward-compatible, like fdp.
   // Use field name `deleteNs` for a unified format with other message.
   bool deleteNs = 3 [json_name="deleteNS"];
@@ -143,10 +150,23 @@ message CmsNsConfigsDeleteResponse {
 
 message CmsNsConfigsGetRequest {
   string ns = 1;
-  string pipelineSource = 2 [(validator.field) = {string_not_empty: true}];
+  string pipelineSource = 2 [(validate.rules).string.min_len = 1];
   repeated PipelineCmsConfigKey keys = 3; // only fetch specified keys
   bool globalDecrypt = 4; // global-level setting's priority is lower than key-level
 }
+
+message CmsNsConfigsBatchGetRequest {
+    string pipelineSource = 1 [(validate.rules).string.min_len = 1];
+    repeated string namespaces = 2;
+    bool globalDecrypt = 3; // global-level setting's priority is lower than key-level
+}
+
 message CmsNsConfigsGetResponse {
   repeated PipelineCmsConfig data = 1;
 }
+
+message CmsNsConfigsBatchGetResponse {
+  repeated PipelineCmsConfig configs = 1;
+}
+
+

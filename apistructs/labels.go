@@ -39,10 +39,15 @@ const (
 	LabelPipelineCronID          = "pipelineCronID"
 	LabelPipelineCronCompensated = "cronCompensated"
 
-	LabelBindPipelineQueueID             = "__bind_queue_id"
-	LabelBindPipelineQueueCustomPriority = "__bind_queue_custom_priority"
+	LabelBindPipelineQueueID               = "__bind_queue_id"
+	LabelBindPipelineQueueCustomPriority   = "__bind_queue_custom_priority"
+	LabelBindPipelineQueueEnqueueCondition = "__bind_queue_enqueue_condition"
 
 	LabelUserID = "userID"
+
+	LabelRunUserID    = "runUserID"
+	LabelCreateUserID = "createUserID"
+	LabelOwnerUserID  = "ownerUserID"
 
 	// ---------------------- snippet some global labels
 	// action
@@ -64,6 +69,8 @@ const (
 	LabelSceneSetID       = "sceneSetID"       // 新版自动化测试的场景集的 id
 	LabelSceneID          = "sceneID"          // 新版自动化测试的场景的 id
 	LabelSpaceID          = "spaceID"          // 空间 id
+	LabelIterationID      = "iterationID"
+	LabelIsRefSet         = "isRefSet"
 	// FDP
 	LabelFdpWorkflowID          = "CDP_WF_ID"
 	LabelFdpWorkflowName        = "CDP_WF_NAME"

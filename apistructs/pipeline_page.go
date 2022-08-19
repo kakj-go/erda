@@ -14,7 +14,10 @@
 
 package apistructs
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // PagePipeline 用于 流水线分页查询结果，相比 PipelineDTO 删除了许多大字段
 type PagePipeline struct {
@@ -45,4 +48,42 @@ type PagePipeline struct {
 	TimeEnd     *time.Time `json:"timeEnd,omitempty"`     // 执行结束时间
 	TimeCreated *time.Time `json:"timeCreated,omitempty"` // 记录创建时间
 	TimeUpdated *time.Time `json:"timeUpdated,omitempty"` // 记录更新时间
+
+	// definition info
+	DefinitionPageInfo *DefinitionPageInfo `json:"definitionPageInfo,omitempty"`
+}
+
+type DefinitionPageInfo struct {
+	Name         string `json:"name,omitempty"`
+	Creator      string `json:"creator,omitempty"`
+	Executor     string `json:"executor,omitempty"`
+	SourceRemote string `json:"sourceRemote,omitempty"`
+	SourceRef    string `json:"sourceRef,omitempty"`
+}
+
+func (p *PagePipeline) GetUserID() string {
+	if p.Extra.OwnerUser != nil && p.Extra.OwnerUser.ID != nil {
+		return fmt.Sprintf("%v", p.Extra.OwnerUser.ID)
+	}
+	if p.Extra.RunUser != nil && p.Extra.RunUser.ID != nil {
+		return fmt.Sprintf("%v", p.Extra.RunUser.ID)
+	}
+	if p.Extra.SubmitUser != nil && p.Extra.SubmitUser.ID != nil {
+		return fmt.Sprintf("%v", p.Extra.SubmitUser.ID)
+	}
+	return ""
+}
+
+func (p *PagePipeline) GetRunUserID() string {
+	if p.Extra.RunUser != nil && p.Extra.RunUser.ID != nil {
+		return fmt.Sprintf("%v", p.Extra.RunUser.ID)
+	}
+	return ""
+}
+
+func (p *PagePipeline) GetOwnerUserID() string {
+	if p.Extra.OwnerUser != nil && p.Extra.OwnerUser.ID != nil {
+		return fmt.Sprintf("%v", p.Extra.OwnerUser.ID)
+	}
+	return ""
 }

@@ -58,14 +58,6 @@ func (u urls) CMDB() (string, error) {
 	return u.getURL(discover.EnvCMDB, discover.SvcCMDB)
 }
 
-func (u urls) Scheduler() (string, error) {
-	return u.getURL(discover.EnvScheduler, discover.SvcScheduler)
-}
-
-func (u urls) DiceHub() (string, error) {
-	return u.getURL(discover.EnvDiceHub, discover.SvcDiceHub)
-}
-
 func (u urls) Soldier() (string, error) {
 	return u.getURL(discover.EnvSoldier, discover.SvcSoldier)
 }
@@ -114,10 +106,6 @@ func (u urls) CMP() (string, error) {
 	return u.getURL(discover.EnvCMP, discover.SvcCMP)
 }
 
-func (u urls) Openapi() (string, error) {
-	return u.getURL(discover.EnvOpenapi, discover.SvcOpenapi)
-}
-
 func (u urls) KMS() (string, error) {
 	return u.getURL(discover.EnvKMS, discover.SvcKMS)
 }
@@ -134,16 +122,16 @@ func (u urls) DOP() (string, error) {
 	return u.getURL(discover.EnvDOP, discover.SvcDOP)
 }
 
-func (u urls) CoreServices() (string, error) {
-	return u.getURL(discover.EnvCoreServices, discover.SvcCoreServices)
+func (u urls) ErdaServer() (string, error) {
+	return u.getURL(discover.EnvErdaServer, discover.SvcErdaServer)
 }
 
 func (u urls) ClusterManager() (string, error) {
 	return u.getURL(discover.EnvClusterManager, discover.SvcClusterManager)
 }
 
-func (u urls) ECP() (string, error) {
-	return u.getURL(discover.EnvECP, discover.SvcECP)
+func (u urls) ClusterDialer() (string, error) {
+	return u.getURL(discover.EnvClusterDialer, discover.SvcClusterDialer)
 }
 
 func (u urls) getURL(k, srvName string) (string, error) {

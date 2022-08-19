@@ -29,7 +29,9 @@ import (
 const (
 	RefOpOutput = "OUTPUT"
 
-	RefOpExEscape = "escape"
+	RefOpExEscape           = "escape"
+	RefOpExWrapDoubleQuotes = "wrap_double_quotes"
+	RefOpExWrapSingleQuotes = "wrap_single_quotes"
 )
 
 // RefOp split from ${alias:OPERATION:key}
@@ -166,7 +168,10 @@ func (v *RefOpVisitor) handleOneParamOrCmdV2(ori string) string {
 		case expression.Random:
 			typeValue := ss[1]
 			value := mock.MockValue(typeValue)
-			return fmt.Sprintf("%v", value)
+			if len(ss) >= 3 {
+				refOp.Ex = ss[2]
+			}
+			return v.handleRefEx(fmt.Sprintf("%v", value), refOp)
 		case expression.Base64Decode:
 			// - base64-decode.xxxxx
 			baseValue := ss[1]
@@ -213,9 +218,15 @@ func (v *RefOpVisitor) handleAction(action *indexedAction, handler func(ori stri
 	}
 
 	// commands
-	for i := range action.Commands {
-		replaced := handler(action.Commands[i])
-		action.Commands[i] = replaced
+	commandYamlBytes, err := yaml.Marshal(action.Commands)
+	if err != nil {
+		v.result.AppendError(err)
+		return
+	}
+	replaced := handler(string(commandYamlBytes))
+	if err := yaml.Unmarshal([]byte(replaced), &action.Commands); err != nil {
+		v.result.AppendError(err)
+		return
 	}
 
 	// caches, 将 caches 中的 ${git-checkout} 转化为实际地址
@@ -392,6 +403,10 @@ func (v *RefOpVisitor) handleRefEx(output string, refOp RefOp) string {
 	switch refOp.Ex {
 	case RefOpExEscape:
 		return expression.Quote(output)
+	case RefOpExWrapDoubleQuotes:
+		return fmt.Sprintf(`"%v"`, output)
+	case RefOpExWrapSingleQuotes:
+		return fmt.Sprintf(`'%v'`, output)
 	default:
 		// do nothing
 		return output

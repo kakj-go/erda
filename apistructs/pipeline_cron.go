@@ -16,13 +16,16 @@ package apistructs
 
 import (
 	"time"
+
+	"github.com/erda-project/erda-proto-go/core/pipeline/pb"
 )
 
 type PipelineCronPagingRequest struct {
-	AllSources bool             `schema:"allSources"`
-	Sources    []PipelineSource `schema:"source"`  // ?source=cdp-dev&source=cdp-test
-	YmlNames   []string         `schema:"ymlName"` // ?ymlName=11&ymlName=22
-	Enable     *bool            `schema:"enable"`
+	AllSources               bool             `schema:"allSources"`
+	Sources                  []PipelineSource `schema:"source"`  // ?source=cdp-dev&source=cdp-test
+	YmlNames                 []string         `schema:"ymlName"` // ?ymlName=11&ymlName=22
+	Enable                   *bool            `schema:"enable"`
+	PipelineDefinitionIDList []string         `schema:"pipelineDefinitionID"`
 
 	PageSize int `schema:"pageSize"`
 	PageNo   int `schema:"pageNo"`
@@ -43,39 +46,47 @@ type PipelineCronDTO struct {
 	TimeCreated time.Time `json:"timeCreated"` // 记录创建时间
 	TimeUpdated time.Time `json:"timeUpdated"` // 记录更新时间
 
-	ApplicationID          uint64     `json:"applicationID"`
-	Branch                 string     `json:"branch"`
-	CronExpr               string     `json:"cronExpr"`
-	CronStartTime          *time.Time `json:"cronStartTime"`
-	PipelineYmlName        string     `json:"pipelineYmlName"` // 一个分支下可以有多个 pipeline 文件，每个分支可以有单独的 cron 逻辑
-	BasePipelineID         uint64     `json:"basePipelineID"`  // 用于记录最开始创建出这条 cron 记录的 pipeline id
-	Enable                 *bool      `json:"enable"`          // 1 true, 0 false
-	PipelineYml            string     `json:"pipelineYml"`
-	ConfigManageNamespaces []string   `json:"configManageNamespaces"`
-	UserID                 string     `json:"userID"`
-	OrgID                  uint64     `json:"orgID"`
-}
-
-type PipelineCronCreateRequest struct {
-	PipelineCreateRequest PipelineCreateRequestV2 `json:"pipelineCreateRequest"`
+	ApplicationID          uint64            `json:"applicationID"`
+	Branch                 string            `json:"branch"`
+	CronExpr               string            `json:"cronExpr"`
+	CronStartTime          *time.Time        `json:"cronStartTime"`
+	PipelineYmlName        string            `json:"pipelineYmlName"` // 一个分支下可以有多个 pipeline 文件，每个分支可以有单独的 cron 逻辑
+	BasePipelineID         uint64            `json:"basePipelineID"`  // 用于记录最开始创建出这条 cron 记录的 pipeline id
+	Enable                 *bool             `json:"enable"`          // 1 true, 0 false
+	PipelineYml            string            `json:"pipelineYml"`
+	ConfigManageNamespaces []string          `json:"configManageNamespaces"`
+	Secrets                map[string]string `json:"secrets"`
+	UserID                 string            `json:"userID"`
+	OrgID                  uint64            `json:"orgID"`
+	PipelineDefinitionID   string            `json:"pipelineDefinitionID"`
+	PipelineSource         PipelineSource    `json:"pipelineSource"`
+	ClusterName            string            `json:"clusterName"`
 }
 
 type PipelineCronCreateResponse struct {
 	Header
-	Data uint64 `json:"data"` // cronID
+	Data *pb.Cron `json:"data"`
+}
+
+type PipelineCronUpdateResponse struct {
+	Header
+}
+
+type PipelineCronGetResponse struct {
+	Header
+	Data *pb.Cron `json:"data"`
 }
 
 type PipelineCronDeleteResponse struct {
 	Header
 }
 
-type PipelineCronUpdateRequest struct {
-	ID                     uint64   `json:"id"`
-	PipelineYml            string   `json:"pipelineYml"`
-	CronExpr               string   `json:"cronExpr"`
-	ConfigManageNamespaces []string `json:"configManageNamespaces"`
+type PipelineCronStartResponse struct {
+	Header
+	Data *pb.Cron `json:"data"`
 }
 
-type PipelineCronUpdateResponse struct {
+type PipelineCronStopResponse struct {
 	Header
+	Data *pb.Cron `json:"data"`
 }

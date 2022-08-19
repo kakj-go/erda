@@ -20,6 +20,14 @@ import (
 	"github.com/erda-project/erda-proto-go/core/pipeline/cms/pb"
 )
 
+var StagingEnv = "STAGING"
+var TestEnv = "TEST"
+var DefaultEnv = "DEFAULT"
+var DevEnv = "DEV"
+var ProdEnv = "PROD"
+
+var EnvList = []string{DefaultEnv, TestEnv, DevEnv, StagingEnv, ProdEnv}
+
 // EnvConfig 环境变量配置
 type EnvConfig struct {
 	Key   string `json:"key"`
@@ -40,6 +48,7 @@ type EnvConfig struct {
 // EnvConfigAddOrUpdateRequest 配置新增/更新请求 POST /api/config
 type EnvConfigAddOrUpdateRequest struct {
 	Configs []EnvConfig `json:"configs"`
+	Batch   bool        `json:"batch"`
 }
 
 // EnvConfigFetchRequest namespace 配置获取请求

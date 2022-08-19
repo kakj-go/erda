@@ -15,15 +15,20 @@
 package main
 
 import (
+	_ "embed"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
 	"github.com/erda-project/erda/pkg/common"
 
 	// providers and modules
-	_ "github.com/erda-project/erda/modules/volume-provisioner"
+	_ "github.com/erda-project/erda/internal/tools/volume-provisioner"
 )
+
+//go:embed bootstrap.yaml
+var bootstrapCfg string
 
 func main() {
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: "conf/volume-provisioner/volume-provisioner.yaml",
+		Content: bootstrapCfg,
 	})
 }

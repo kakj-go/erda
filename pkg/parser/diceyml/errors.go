@@ -24,6 +24,7 @@ var (
 	invalidPolicy              = errortype("invalid policy defined in yaml")
 	invalidCPU                 = errortype("invalid cpu defined in yaml")
 	invalidMaxCPU              = errortype("invalid max cpu defined in yaml")
+	invalidMaxMem              = errortype("invalid max mem defined in yaml")
 	invalidMem                 = errortype("invalid memory defined in yaml")
 	invalidDisk                = errortype("invalid disk defined in yaml")
 	invalidNetworkMode         = errortype("invalid network mode defined in yaml, must be 'container' or 'host'")
@@ -39,6 +40,8 @@ var (
 	emptyEndpointDomain        = errortype("empty domain in endpoints")
 	invalidEndpointDomain      = errortype("invalid domain in endpoints")
 	invalidEndpointPath        = errortype("invalid path in endpoints, must start with '/'")
+	invalidEmptyDir            = errortype("invalid emptydir_size defined in yaml")
+	invalidEphemeralStorage    = errortype("invalid ephemeral_storage_size defined in yaml, at least set 1")
 )
 
 type errortype string

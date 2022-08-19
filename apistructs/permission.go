@@ -14,12 +14,22 @@
 
 package apistructs
 
+// Resource Role
+const (
+	ResourceRoleCreator  string = "CREATOR"
+	ResourceRoleAssignee string = "ASSIGNEE"
+	ResourceRoleOwner    string = "OWNER"
+	ResourceRolePartner  string = "PARTNER"
+)
+
 // 权限资源集
 const (
 	OrgResource                string = "org"
 	ResourceInfoResource       string = "resourceInfo"
 	ProjectResource            string = "project"
 	ProjectPublicResource      string = "project-public"
+	ProjectTemplateResource    string = "project-template"
+	ProjectPackageResource     string = "project-package"
 	AppResource                string = "app"
 	AppPublicResource          string = "app-public"
 	MemberResource             string = "member"
@@ -31,6 +41,7 @@ const (
 	HostResource               string = "host"
 	NotifyResource             string = "notify"
 	TicketResource             string = "ticket"
+	SubscribeResource          string = "subscribe"
 	IterationResource          string = "iteration"
 	IssueRequirementResource   string = "issue-requirement"
 	IssueTaskResource          string = "issue-task"
@@ -164,7 +175,13 @@ type PermissionList struct {
 	Exist bool `json:"exist"`
 
 	// 无权限（access=false）时，该字段返回联系人 ID 列表，例如无应用权限时，返回应用管理员列表
-	ContactsWhenNoPermission []string `json:"contactsWhenNoPermission,omitempty"`
+	ContactsWhenNoPermission []string   `json:"contactsWhenNoPermission,omitempty"`
+	ScopeInfo                *ScopeInfo `json:"scopeInfo"`
+}
+
+type ScopeInfo struct {
+	ProjectName string `json:"projectName"`
+	AppName     string `json:"appName"`
 }
 
 // PermissionListResponse 权限列表响应信息

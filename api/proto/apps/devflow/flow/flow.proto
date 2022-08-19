@@ -1,0 +1,241 @@
+syntax = "proto3";
+
+package erda.apps.devflow.flow;
+
+import "common/openapi.proto";
+import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
+import "openapiv1/gittar/gittar.proto";
+
+option go_package = "github.com/erda-project/erda-proto-go/apps/devflow/flow/pb";
+
+service FlowService {
+    option(erda.common.openapi_service) = {
+        service: "dop",
+        auth: {
+            check_login: true,
+            check_token: true,
+        }
+    };
+    rpc CreateFlowNode(CreateFlowNodeRequest) returns (CreateFlowNodeResponse) {
+        option(google.api.http) = {
+            post: "/api/devflow",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devflow",
+        };
+    }
+    rpc OperationMerge(OperationMergeRequest) returns (OperationMergeResponse) {
+        option(google.api.http) = {
+            put: "/api/devflow/{devFlowID}/actions/operation-merge",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devflow/{devFlowID}/actions/operation-merge",
+        };
+    }
+    rpc DeleteFlowNode(DeleteFlowNodeRequest) returns (DeleteFlowNodeResponse) {
+        option(google.api.http) = {
+            delete: "/api/devflow/{devFlowID}",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devflow/{devFlowID}",
+        };
+    }
+    rpc Reconstruction(ReconstructionRequest) returns (ReconstructionResponse) {
+        option(google.api.http) = {
+            post: "/api/devflow/actions/reconstruction",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devflow/actions/reconstruction",
+        };
+    }
+    rpc GetDevFlowInfo(GetDevFlowInfoRequest) returns (GetDevFlowInfoResponse) {
+        option(google.api.http) = {
+            get: "/api/devflow/actions/info",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devflow/actions/info",
+        };
+    }
+    rpc FlowCallBack(FlowCallbackRequest) returns (FlowCallbackResponse) {
+        option(google.api.http) = {
+            post: "/api/devflow/actions/callback",
+        };
+    }
+}
+
+message IssueRelationExtra {
+    uint64 appID = 1;
+    uint64 repoMergeID = 2;
+}
+
+message DevFlowNode {
+    uint64 repoMergeID = 1;
+    uint64 appID = 2;
+    string targetBranch = 3;
+    string sourceBranch = 4;
+    bool isJoinTempBranch = 5;
+    string joinTempBranchStatus = 6;
+    string tempBranch = 7;
+    uint64 issueID = 8;
+    uint64 mergeID = 9;
+    string appName = 10;
+    Commit commit = 11;
+    Commit baseCommit = 12;
+    bool canJoin = 13;
+    openapiv1.gittar.MergeRequestInfo mergeRequestInfo = 14;
+}
+
+// CreateFlow
+message CreateFlowNodeRequest {
+    uint64 issueID = 1 [(validate.rules).uint64.gt = 0];
+    uint64 appID = 2 [(validate.rules).uint64.gt = 0];
+    string flowRuleName = 3 [(validate.rules).string.min_len = 1];
+    string currentBranch = 4 [(validate.rules).string.min_len = 1];
+}
+
+message CreateFlowNodeResponse {
+    DevFlow data = 1;
+}
+
+
+message DevFlow {
+    string ID = 1 [json_name = "id"];
+    uint64 orgID = 2;
+    string orgName = 3;
+    string creator = 4;
+    string branch = 5;
+    uint64 issueID = 6;
+    string flowRuleName = 7;
+    uint64 appID = 8;
+    string appName = 9;
+    string joinTempBranchStatus = 10;
+    bool isJoinTempBranch = 11;
+    google.protobuf.Timestamp createdAt = 12;
+    google.protobuf.Timestamp updatedAt = 13;
+}
+
+message OperationMergeRequest {
+    string devFlowID = 1 [(validate.rules).string.min_len = 1];
+    google.protobuf.BoolValue enable = 2 [(validate.rules).message.required = true];
+}
+
+message OperationMergeResponse {
+}
+
+// DeleteFlowNode
+message DeleteFlowNodeRequest {
+    string devFlowID = 1 [(validate.rules).string.min_len = 1];
+    bool deleteBranch = 2;
+}
+
+message DeleteFlowNodeResponse {
+}
+
+// reconstruction
+message ReconstructionRequest {
+    uint64 mergeID = 1;
+}
+
+message ReconstructionResponse {
+}
+
+message PipelineStepInfo {
+    string status = 1;
+    uint64 pipelineID = 2;
+    string ymlName = 3;
+    bool hasOnPushBranch = 4;
+    string inode = 5;
+    string pInode = 6;
+}
+
+message GetDevFlowInfoRequest {
+    uint64 issueID = 1;
+    uint64 appID = 2;
+    string branch = 3;
+}
+
+message ChangeBranch {
+    Commit commit = 1;
+    string branchName = 2;
+    string status = 3;
+}
+
+message DevFlowInfo {
+    DevFlow devFlow = 1;
+    bool hasPermission = 2;
+    CodeNode codeNode = 3;
+    TempMergeNode tempMergeNode = 4;
+    PipelineNode pipelineNode = 5;
+    MergeRequestNode mergeRequestNode = 6;
+}
+
+message CodeNode {
+    string currentBranch = 1;
+    Commit commit = 2;
+    bool isJoinTempBranch = 3;
+    string joinTempBranchStatus = 4;
+    bool canJoin = 5;
+    bool exist = 6;
+    string sourceBranch = 7;
+}
+
+message TempMergeNode {
+    string tempBranch = 1;
+    Commit baseCommit = 2;
+    repeated ChangeBranch changeBranch = 3;
+}
+
+message PipelineNode {
+    repeated PipelineStepInfo pipelineStepInfos = 1;
+}
+
+message MergeRequestNode {
+    string currentBranch = 1;
+    string targetBranch = 2;
+    string title = 3;
+    string desc = 4;
+    openapiv1.gittar.MergeRequestInfo mergeRequestInfo = 5;
+}
+
+message GetDevFlowInfoResponse {
+    repeated DevFlowInfo devFlowInfos = 1;
+}
+
+message Commit {
+    string ID = 1 [json_name = "id"];
+    Signature author = 2;
+    Signature committer = 3;
+    string commitMessage = 4;
+    string parentSha = 5;
+}
+
+message Signature {
+    string email = 1;
+    string name = 2;
+    google.protobuf.Timestamp When = 3;
+}
+
+message FlowCallbackRequest {
+    FlowEventData content = 1;
+    string projectID = 2;
+    string orgID = 3;
+    string applicationID = 4;
+}
+
+message FlowEventData {
+    map<string, google.protobuf.Value> params = 1;
+    uint64 issueID = 2;
+    string operator = 3;
+    string tempBranch = 4;
+    string sourceBranch = 5;
+    string targetBranch = 6;
+    string appName = 7;
+    string projectName = 8;
+    string isJoinTempBranch = 9;
+}
+
+message FlowCallbackResponse {}

@@ -14,6 +14,20 @@
 
 package apistructs
 
+const (
+	K8sNamespace     = "k8snamespace"
+	K8sPodName       = "k8spodname"
+	K8sPodUid        = "k8spoduid"
+	K8sContainerName = "k8scontainername"
+)
+
+type K8sInstanceMetaInfo struct {
+	PodUid        string `json:"podUid"`
+	PodName       string `json:"podName"`
+	PodNamespace  string `json:"podNamespace"`
+	ContainerName string `json:"containerName"`
+}
+
 type CmContainersFetchResponse struct {
 	Header
 	Data []ContainerFetchResponseData `json:"data"`
@@ -99,6 +113,8 @@ func (c Containers) Less(i, j int) bool { return c[i].StartedAt < c[j].StartedAt
 
 // Container 容器信息
 type Container struct {
+	K8sInstanceMetaInfo
+
 	ID          string  `json:"id,omitempty"`          // Task Id
 	ContainerID string  `json:"containerId,omitempty"` // Container Id
 	IPAddress   string  `json:"ipAddress,omitempty"`
@@ -130,16 +146,32 @@ type PodListResponse struct {
 }
 
 type Pod struct {
-	Uid          string `json:"uid"`
-	IPAddress    string `json:"ipAddress"`
-	Host         string `json:"host"`
-	Phase        string `json:"phase"`
-	Message      string `json:"message"`
-	StartedAt    string `json:"startedAt"`
-	Service      string `json:"service"`
-	ClusterName  string `json:"clusterName"`
-	PodName      string `json:"podName"`
-	K8sNamespace string `json:"k8sNamespace"`
+	Uid           string         `json:"uid"`
+	IPAddress     string         `json:"ipAddress"`
+	Host          string         `json:"host"`
+	Phase         string         `json:"phase"`
+	Message       string         `json:"message"`
+	StartedAt     string         `json:"startedAt"`
+	Service       string         `json:"service"`
+	ClusterName   string         `json:"clusterName"`
+	PodName       string         `json:"podName"`
+	K8sNamespace  string         `json:"k8sNamespace"`
+	RestartCount  int32          `json:"restartCount"`
+	PodContainers []PodContainer `json:"podContainers"`
+}
+
+type PodContainer struct {
+	ContainerID   string            `json:"containerId"`
+	ContainerName string            `json:"containerName"`
+	Image         string            `json:"image"`
+	Resource      ContainerResource `json:"resources"`
+	Message       string            `json:"message"`
+}
+type ContainerResource struct {
+	MemRequest int     `json:"memRequest"`
+	MemLimit   int     `json:"memLimit"`
+	CpuRequest float64 `json:"cpuRequest"`
+	CpuLimit   float64 `json:"cpuLimit"`
 }
 
 type Pods []Pod

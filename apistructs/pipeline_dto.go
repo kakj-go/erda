@@ -16,6 +16,8 @@ package apistructs
 
 import (
 	"time"
+
+	"github.com/erda-project/erda-proto-go/core/pipeline/pb"
 )
 
 type PipelineDTO struct {
@@ -76,6 +78,7 @@ type (
 		SubmitUser             *PipelineUser `json:"submitUser,omitempty"`
 		RunUser                *PipelineUser `json:"runUser,omitempty"`
 		CancelUser             *PipelineUser `json:"cancelUser,omitempty"`
+		OwnerUser              *PipelineUser `json:"ownerUser,omitempty"`
 		CronExpr               string        `json:"cronExpr,omitempty"`
 		CronTriggerTime        *time.Time    `json:"cronTriggerTime,omitempty"` // 秒级精确，毫秒级误差请忽略，cron expr 精确度同样为秒级
 		ShowMessage            *ShowMessage  `json:"showMessage,omitempty"`
@@ -121,7 +124,7 @@ type PipelineDetailDTO struct {
 	PipelineDTO
 	PipelineStages        []PipelineStageDetailDTO `json:"pipelineStages"`
 	PipelineSnippetStages []PipelineStageDetailDTO `json:"pipelineSnippetStages"`
-	PipelineCron          *PipelineCronDTO         `json:"pipelineCron"`
+	PipelineCron          *pb.Cron                 `json:"pipelineCron"`
 
 	// 按钮
 	PipelineButton PipelineButton `json:"pipelineButton"`
@@ -141,6 +144,9 @@ type PipelineParamDTO struct {
 }
 
 type PipelineTaskActionDetail struct {
+	Name        string `json:"name"`
+	Version     string `json:"version"`
+	Type        string `json:"type""`
 	LogoUrl     string `json:"logoUrl"`
 	DisplayName string `json:"displayName"`
 	Description string `json:"description"`

@@ -22,6 +22,7 @@ import (
 	"io/ioutil"
 	"net/url"
 
+	"github.com/erda-project/erda-proto-go/core/file/pb"
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/bundle/apierrors"
 	"github.com/erda-project/erda/pkg/http/httpclient"
@@ -30,7 +31,7 @@ import (
 
 // CreateAuditEvent 创建审计事件
 func (b *Bundle) CreateAuditEvent(audits *apistructs.AuditCreateRequest) error {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -54,7 +55,7 @@ func (b *Bundle) CreateAuditEvent(audits *apistructs.AuditCreateRequest) error {
 
 // BatchCreateAuditEvent 批量创建审计事件
 func (b *Bundle) BatchCreateAuditEvent(audits *apistructs.AuditBatchCreateRequest) error {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -77,7 +78,7 @@ func (b *Bundle) BatchCreateAuditEvent(audits *apistructs.AuditBatchCreateReques
 }
 
 func (b *Bundle) ListAuditEvent(orgID string, userID string, params url.Values) (*apistructs.AuditsListResponse, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (b *Bundle) ListAuditEvent(orgID string, userID string, params url.Values) 
 	var listAudit apistructs.AuditsListResponse
 	resp, err := hc.
 		Get(host).
-		Path("/api/audits/actions/list").
+		Path("/core/api/audits/actions/list").
 		Header(httputil.InternalHeader, "bundle").
 		Header(httputil.OrgHeader, orgID).
 		Header(httputil.UserHeader, userID).
@@ -107,19 +108,23 @@ func (b *Bundle) ListAuditEvent(orgID string, userID string, params url.Values) 
 	return &listAudit, nil
 }
 
-func (b *Bundle) ExportAuditExcel(orgID, userID string, params url.Values) (io.ReadCloser, *httpclient.Response, error) {
-	host, err := b.urls.CoreServices()
+func (b *Bundle) ExportAuditExcel(orgID, userID, lang string, params url.Values) (io.ReadCloser, *httpclient.Response, error) {
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, nil, err
 	}
 	hc := b.hc
 
+	if lang == "" {
+		lang = "zh-CN"
+	}
 	respBody, resp, err := hc.
 		Get(host).
-		Path("/api/audits/actions/export-excel").
+		Path("/core/api/audits/actions/export-excel").
 		Header(httputil.InternalHeader, "bundle").
 		Header(httputil.OrgHeader, orgID).
 		Header(httputil.UserHeader, userID).
+		Header(httputil.LangHeader, lang).
 		Params(params).
 		Do().StreamBody()
 	if err != nil {
@@ -127,9 +132,9 @@ func (b *Bundle) ExportAuditExcel(orgID, userID string, params url.Values) (io.R
 	}
 	if !resp.IsOK() {
 		bodyBytes, _ := ioutil.ReadAll(respBody)
-		var downloadResp apistructs.FileDownloadFailResponse
+		var downloadResp pb.FileDownloadFailResponse
 		if err := json.Unmarshal(bodyBytes, &downloadResp); err == nil {
-			return nil, nil, toAPIError(resp.StatusCode(), downloadResp.Error)
+			return nil, nil, toPbAPIError(resp.StatusCode(), downloadResp.Error)
 		}
 		return nil, nil, fmt.Errorf("failed to export audit excel, responseBody: %s", string(bodyBytes))
 	}

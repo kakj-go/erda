@@ -29,3 +29,34 @@ func ReverseSlice(s interface{}) {
 		swap(i, j)
 	}
 }
+
+func ReverseString(s string) string {
+	var n = len(s)
+	if n <= 1 {
+		return s
+	}
+	var b = []rune(s)
+	for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
+		b[i], b[j] = b[j], b[i]
+	}
+	return string(b)
+}
+
+func DedupAnySlice(s interface{}, uniq func(i int) interface{}) interface{} {
+	in := reflect.ValueOf(s)
+	if in.Kind() != reflect.Slice && in.Kind() != reflect.Array {
+		return s
+	}
+	var (
+		dup = make(map[interface{}]struct{})
+		out = reflect.MakeSlice(in.Type(), 0, in.Len())
+	)
+	for i := 0; i < in.Len(); i++ {
+		v := uniq(i)
+		if _, ok := dup[v]; !ok {
+			out = reflect.Append(out, in.Index(i))
+			dup[v] = struct{}{}
+		}
+	}
+	return out.Interface()
+}

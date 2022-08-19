@@ -39,6 +39,29 @@ const (
 	WS_TEST                 = "test"
 	WS_STAGING              = "staging"
 	WS_PROD                 = "production"
+
+	// Addon new options for create labels
+	// disk type: ‘SSD’、'NAS'、'OSS'、''
+	AddonDiskType = "addonDiskType"
+	// volume capacity: at least 20GB
+	AddonVolumeSize = "addonVolumeSize"
+	//historical snapshot count
+	AddonSnapMaxHistory = "addonSnapMaxHistory"
+	// addon image private registry
+	AddonImageRegistry = "k8s.aliyun.com/insecure-registry"
+	// Erda addon images registry
+	AddonPublicRegistry = "registry.erda.cloud"
+	// Env for orchestrator
+	ErdaImageRegistry = "DICE_IMAGE_REGISTRY"
+
+	// 容量最大限制 32TB
+	AddonVolumeSizeMax = int32(32768)
+	// 容量最小限制 20GiB
+	AddonVolumeSizeMin = int32(20)
+	// 历史快照数量限制 100 个
+	AddonVolumeSnapshotMax = int32(100)
+	// 项目级部署 ECI 默认卷容量
+	ProjectECIVolumeDefaultSize = int32(20)
 )
 
 type Object struct {
@@ -76,7 +99,7 @@ type Selector struct {
 type Selectors map[string]Selector
 
 type EnvObject struct {
-	Envs     EnvMap   `yaml:"envs,omitempty" json:"-"`
+	Envs     EnvMap   `yaml:"envs,omitempty" json:"envs,omitempty"`
 	Services Services `yaml:"services,omitempty" json:"services,omitempty"`
 	AddOns   AddOns   `yaml:"addons,omitempty" json:"addons,omitempty"`
 }
@@ -90,22 +113,55 @@ type AddOn struct {
 }
 
 type Volume struct {
-	ID *string `json:"id"`
+	// TODO: DEPRECATED IN FUTURE
+	ID *string `yaml:"id,omitempty" json:"id,omitempty"`
+	// TODO: DEPRECATED IN FUTURE
 	// nfs, local
-	Storage string `json:"storage"`
-	Path    string `json:"path"`
+	Storage string `yaml:"storage,omitempty" json:"storage,omitempty"`
+	// TODO: DEPRECATED IN FUTURE
+	Path string `yaml:"path,omitempty" json:"path,omitempty"`
+
+	// Type is the type of volume, it will be supported DICE-NAS, DICE-LOCAL, SSD, NAS, OSS...
+	// only support DICE-NAS, DICE-LOCAL, SSD currently
+	Type string `yaml:"type,omitempty" json:"type,omitempty"`
+	// Capacity is the capacity of volume and the default unit is 'GB'
+	Capacity int32 `yaml:"size,omitempty" json:"size,omitempty"`
+	// SourcePath is the volume source path that is used in the local PV or host path
+	// Default is empty
+	//SourcePath string `yaml:"sourcePath,omitempty" json:"sourcePath,omitempty"`
+	// TargetPath indicates will mount the file or directory in the volume to the
+	// specified location of the container. Default is '/'
+	TargetPath string `yaml:"targetPath,omitempty" json:"targetPath,omitempty"`
+	// ReadOnly set the file in the volume allow to be read-only
+	// Default is false
+	ReadOnly bool `yaml:"readOnly,omitempty" json:"readOnly,omitempty"`
+	// Snapshot indicates use can create snapshots of this volume
+	// if Snapshot field isn't null and the default time interval is 3600 second
+	// Note: Now, only for Alibaba disk ssd storageclass
+	Snapshot *VolumeSnapshot `yaml:"snapshot,omitempty" json:"snapshot,omitempty"`
+}
+
+type VolumeSnapshot struct {
+	// MaxHistory indicates the max count of the snapshot can be created
+	// if the number of snapshots is beyond the max, the earliest one will be deleted
+	MaxHistory int32 `yaml:"maxHistory,omitempty" json:"maxHistory,omitempty"`
+}
+
+type SnapshotAnnotations struct {
+	Snapshot map[string]VolumeSnapshot
 }
 type Volumes []Volume
 
 type Job struct {
-	Image     string            `yaml:"image,omitempty" json:"image"`
-	Cmd       string            `yaml:"cmd,omitempty" json:"cmd"`
-	Envs      EnvMap            `yaml:"envs,omitempty" json:"envs,omitempty"`
-	Resources Resources         `yaml:"resources,omitempty" json:"resources"`
-	Labels    map[string]string `yaml:"labels,omitempty" json:"labels,omitempty"`
-	Binds     Binds             `yaml:"binds,omitempty" json:"binds,omitempty"`
-	Volumes   Volumes           `yaml:"volumes,omitempty" json:"volumes,omitempty"`
-	Hosts     []string          `yaml:"hosts,omitempty" json:"hosts,omitempty"`
+	Image     string                   `yaml:"image,omitempty" json:"image"`
+	Cmd       string                   `yaml:"cmd,omitempty" json:"cmd"`
+	Envs      EnvMap                   `yaml:"envs,omitempty" json:"envs,omitempty"`
+	Resources Resources                `yaml:"resources,omitempty" json:"resources"`
+	Labels    map[string]string        `yaml:"labels,omitempty" json:"labels,omitempty"`
+	Binds     Binds                    `yaml:"binds,omitempty" json:"binds,omitempty"`
+	Volumes   Volumes                  `yaml:"volumes,omitempty" json:"volumes,omitempty"`
+	Init      map[string]InitContainer `yaml:"init,omitempty" json:"init,omitempty"`
+	Hosts     []string                 `yaml:"hosts,omitempty" json:"hosts,omitempty"`
 }
 
 type InitContainer struct {
@@ -368,13 +424,25 @@ func unmarshalVolume(v *Volume, unmarshal func(interface{}) error) error {
 	volobj := struct {
 		ID *string `json:"id"`
 		// nfs, local
-		Storage string `json:"storage"`
-		Path    string `json:"path"`
+		Storage  string `json:"storage"`
+		Path     string `json:"path"`
+		Type     string `json:"type,omitempty"`
+		Capacity int32  `json:"size,omitempty"`
+		//SourcePath string          `json:"sourcePath,omitempty"`
+		TargetPath string          `json:"targetPath,omitempty"`
+		ReadOnly   bool            `json:"readOnly,omitempty"`
+		Snapshot   *VolumeSnapshot `json:"snapshot,omitempty"`
 	}{}
 	if err := unmarshal(&volobj); err == nil {
 		v.ID = volobj.ID
 		v.Storage = volobj.Storage
 		v.Path = volobj.Path
+		v.Type = volobj.Type
+		v.Capacity = volobj.Capacity
+		//v.SourcePath = volobj.SourcePath
+		v.TargetPath = volobj.TargetPath
+		v.ReadOnly = volobj.ReadOnly
+		v.Snapshot = volobj.Snapshot
 		return nil
 	}
 	if err := unmarshal(&s); err != nil {
@@ -446,6 +514,15 @@ func (sl Selector) MarshalYAML() (interface{}, error) {
 }
 
 func unmarshalSelector(selector *Selector, unmarshal func(interface{}) error) error {
+	obj := struct {
+		Not    bool     `json:"not"`
+		Values []string `json:"values"`
+	}{}
+	if err := unmarshal(&obj); err == nil {
+		selector.Not = obj.Not
+		selector.Values = obj.Values
+		return nil
+	}
 	var s string
 	if err := unmarshal(&s); err != nil {
 		return err
@@ -463,6 +540,28 @@ func unmarshalSelector(selector *Selector, unmarshal func(interface{}) error) er
 		return nil
 	}
 	return fmt.Errorf("failed to unmarshal {Selector}: %s", s)
+}
+
+func (bs *Binds) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	binds := []Bind{}
+	if err := unmarshal(&binds); err != nil {
+		bindsstr := []string{}
+		if err := unmarshal(&bindsstr); err != nil {
+			return err
+		}
+		*bs = bindsstr
+		return nil
+	}
+	r := []string{}
+	for _, bind := range binds {
+		tp := bind.Type
+		if tp == "" {
+			tp = "rw"
+		}
+		r = append(r, strutil.Join([]string{bind.HostPath, bind.ContainerPath, tp}, ":", true))
+	}
+	*bs = r
+	return nil
 }
 
 func marshalSelector(selector Selector) (interface{}, error) {
@@ -562,12 +661,14 @@ type ExecCheck struct {
 }
 
 type Resources struct {
-	CPU     float64           `yaml:"cpu,omitempty" json:"cpu"`
-	Mem     int               `yaml:"mem,omitempty" json:"mem"`
-	MaxCPU  float64           `yaml:"max_cpu,omitempty" json:"max_cpu"`
-	MaxMem  int               `yaml:"max_mem,omitempty" json:"max_mem"`
-	Disk    int               `yaml:"disk,omitempty" json:"disk"`
-	Network map[string]string `yaml:"network,omitempty" json:"network"`
+	CPU                      float64           `yaml:"cpu,omitempty" json:"cpu"`
+	Mem                      int               `yaml:"mem,omitempty" json:"mem"`
+	MaxCPU                   float64           `yaml:"max_cpu,omitempty" json:"max_cpu"`
+	MaxMem                   int               `yaml:"max_mem,omitempty" json:"max_mem"`
+	Disk                     int               `yaml:"disk,omitempty" json:"disk"`
+	Network                  map[string]string `yaml:"network,omitempty" json:"network"`
+	EmptyDirCapacity         int               `yaml:"emptydir_size,omitempty" json:"emptydir_size"`
+	EphemeralStorageCapacity int               `yaml:"ephemeral_storage_size,omitempty" json:"ephemeral_storage_size"`
 }
 
 type Deployments struct {

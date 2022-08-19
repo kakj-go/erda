@@ -17,8 +17,12 @@ package bundle
 
 import (
 	"fmt"
+	"io"
 	"net/url"
+	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -35,6 +39,10 @@ type GittarLines struct {
 	Since    string
 	To       string
 }
+
+var (
+	RepoNotExist = errors.New("repo not exist.")
+)
 
 // DeleteGitRepo 从gittar删除应用gitRepo
 func (b *Bundle) DeleteGitRepo(gitRepo string) error {
@@ -63,7 +71,6 @@ func (b *Bundle) CreateRepo(repo apistructs.CreateRepoRequest) (*apistructs.Crea
 		return nil, err
 	}
 	hc := b.hc
-
 	var response apistructs.CreateRepoResponse
 	resp, err := hc.Post(host).Path("/_system/repos").JSONBody(repo).Do().JSON(&response)
 	if err != nil {
@@ -310,6 +317,38 @@ func (b *Bundle) GetGittarCommit(repo, ref, userID string) (*apistructs.Commit, 
 	return &commit.Data[0], nil
 }
 
+func (b *Bundle) ListGittarCommit(repo, ref, userID string, orgID string) (*apistructs.Commit, error) {
+	var (
+		host   string
+		err    error
+		commit apistructs.GittarCommitsListResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := hc.Get(host).
+		Path(repo+"/commits/"+ref).
+		Header(httputil.UserHeader, userID).
+		Header(httputil.OrgHeader, orgID).
+		Param("pageNo", "1").
+		Param("pageSize", "1").
+		Do().JSON(&commit)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() || !commit.Success {
+		return nil, toAPIError(resp.StatusCode(), commit.Error)
+	}
+
+	if len(commit.Data) == 0 {
+		return nil, errors.New("no commit found")
+	}
+	return &commit.Data[0], nil
+}
+
 // GetGittarBranches 获取指定应用的所有分支
 func (b *Bundle) GetGittarBranches(repo, userID string) ([]string, error) {
 	var (
@@ -374,8 +413,89 @@ func (b *Bundle) GetGittarBranchesV2(repo string, orgID string, onlyBranchNames 
 	return branches, nil
 }
 
-// 获取目录的子节点
-func (b *Bundle) GetGittarTreeNode(repo string, orgID string, simple bool, userID string) ([]apistructs.TreeEntry, error) {
+func (b *Bundle) GetGittarBranchDetail(repo, orgID, branch, userID string) (*apistructs.BranchDetail, error) {
+	var (
+		host       string
+		err        error
+		branchResp apistructs.GittarBranchDetailResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := hc.Get(host).
+		Path(repo+"/branches/"+branch).
+		Header("Org-ID", orgID).
+		Header(httputil.UserHeader, userID).
+		Do().JSON(&branchResp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() || !branchResp.Success {
+		return nil, toAPIError(resp.StatusCode(), branchResp.Error)
+	}
+	return branchResp.Data, nil
+}
+
+func (b *Bundle) DeleteGittarBranch(repo, orgID, branch, userID string) error {
+	var (
+		host       string
+		err        error
+		branchResp apistructs.GittarDeleteBranchResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return err
+	}
+
+	resp, err := hc.Delete(host).
+		Path(repo+"/branches/"+branch).
+		Header("Org-ID", orgID).
+		Header(httputil.UserHeader, userID).
+		Do().JSON(&branchResp)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() || !branchResp.Success {
+		return toAPIError(resp.StatusCode(), branchResp.Error)
+	}
+	return nil
+}
+
+// GetGittarBranchesV2 获取指定应用的所有分支
+func (b *Bundle) CreateGittarBranch(repo string, branchInfo apistructs.GittarCreateBranchRequest, orgID string, userID string) error {
+	var (
+		host       string
+		err        error
+		createResp apistructs.GittarCreateBranchResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return err
+	}
+
+	resp, err := hc.Post(host).
+		Path(repo+"/branches").
+		Header(httputil.OrgHeader, orgID).
+		Header(httputil.UserHeader, userID).
+		JSONBody(branchInfo).
+		Do().JSON(&createResp)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() || !createResp.Success {
+		return toAPIError(resp.StatusCode(), createResp.Error)
+	}
+
+	return nil
+}
+
+// GetGittarTreeNode 获取目录的子节点
+func (b *Bundle) GetGittarTreeNode(repo string, orgID string, simple bool, userID string) (*apistructs.GittarTreeData, error) {
 	var (
 		host     string
 		err      error
@@ -399,11 +519,8 @@ func (b *Bundle) GetGittarTreeNode(repo string, orgID string, simple bool, userI
 	if !resp.IsOK() || !treeResp.Success {
 		return nil, toAPIError(resp.StatusCode(), treeResp.Error)
 	}
-	if treeResp.Data.Entries == nil {
-		return nil, nil
-	}
 
-	return treeResp.Data.Entries, nil
+	return &treeResp.Data, nil
 }
 
 // 获取文件的内容
@@ -600,6 +717,117 @@ func (b *Bundle) CloseMergeRequest(appID int64, mrID int, userID string) error {
 	return nil
 }
 
+// OperationTempBranch operation mr temp branch
+func (b *Bundle) OperationTempBranch(appID uint64, userID string, req apistructs.GittarMergeOperationTempBranchRequest) error {
+	var (
+		host string
+		err  error
+		rsp  apistructs.GittarMergeOperationTempBranchResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return err
+	}
+
+	resp, err := hc.Post(host).
+		Header(httputil.UserHeader, userID).
+		Path(fmt.Sprintf("/app-repo/%v/merge-requests/%v/operation-temp-branch", appID, req.MergeID)).
+		JSONBody(req).
+		Do().JSON(&rsp)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+
+	if !resp.IsOK() {
+		return apierrors.ErrInvoke.InternalError(errors.Errorf("failed to operationTempBranch"))
+	}
+	return nil
+}
+
+func (b *Bundle) CreateMergeRequest(appID uint64, userID string, req apistructs.GittarCreateMergeRequest) (*apistructs.MergeRequestInfo, error) {
+	var (
+		host string
+		err  error
+		rsp  apistructs.GittarCreateMergeResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := hc.Post(host).
+		Header(httputil.UserHeader, userID).
+		Path(fmt.Sprintf("/app-repo/%d/merge-requests", appID)).
+		JSONBody(req).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return nil, apierrors.ErrInvoke.InternalError(errors.Errorf("failed to list Mr"))
+	}
+	return rsp.Data, nil
+}
+
+// ListMergeRequest list mrs
+func (b *Bundle) ListMergeRequest(appID uint64, userID string, req apistructs.GittarQueryMrRequest) (*apistructs.QueryMergeRequestsData, error) {
+	var (
+		host string
+		err  error
+		rsp  apistructs.GittarQueryMrResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := hc.Get(host).
+		Header(httputil.UserHeader, userID).
+		Path(fmt.Sprintf("/app-repo/%d/merge-requests", appID)).
+		Param("state", req.State).
+		Param("targetBranch", req.TargetBranch).
+		Param("sourceBranch", req.SourceBranch).
+		Param("pageNo", strconv.FormatInt(int64(req.Page), 10)).
+		Param("pageSize", strconv.FormatInt(int64(req.Size), 10)).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return nil, apierrors.ErrInvoke.InternalError(errors.Errorf("failed to list Mr"))
+	}
+	return &rsp.Data, nil
+}
+
+// GetMergeRequestDetail get mr derails
+func (b *Bundle) GetMergeRequestDetail(appID uint64, userID string, mrID uint64) (*apistructs.MergeRequestInfo, error) {
+	var (
+		host string
+		err  error
+		rsp  apistructs.GittarQueryMrDetailResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := hc.Get(host).
+		Header(httputil.UserHeader, userID).
+		Path(fmt.Sprintf("/app-repo/%d/merge-requests/%v", appID, mrID)).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return nil, apierrors.ErrInvoke.InternalError(errors.Errorf("failed to get Mr"))
+	}
+	return &rsp.Data, nil
+}
+
 // GetGittarCompare gittar compare between commits
 func (b *Bundle) GetGittarCompare(after, before string, appID int64, userID string) (*apistructs.GittarCompareData, error) {
 	var (
@@ -625,4 +853,137 @@ func (b *Bundle) GetGittarCompare(after, before string, appID int64, userID stri
 	}
 
 	return &compareResponse.Data, nil
+}
+
+func (b *Bundle) MergeRequestCount(userID string, req apistructs.MergeRequestCountRequest) (map[string]int, error) {
+	var (
+		host string
+		err  error
+		rsp  apistructs.MergeRequestCountResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	values := url.Values{}
+	for _, i := range req.AppIDs {
+		values.Add("appIDs", strconv.FormatUint(i, 10))
+	}
+
+	resp, err := hc.Get(host).
+		Header(httputil.UserHeader, userID).
+		Param("state", req.State).
+		Path(fmt.Sprintf("/api/merge-requests-count")).
+		Params(values).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return nil, apierrors.ErrInvoke.InternalError(errors.Errorf("failed to list merge request count"))
+	}
+	return rsp.Data, nil
+}
+
+func (b *Bundle) GetArchive(userID string, req apistructs.GittarArchiveRequest, distDir string) (string, error) {
+	host, err := b.urls.Gittar()
+	if err != nil {
+		return "", err
+	}
+	hc := b.hc
+
+	path := fmt.Sprintf("/%s/dop/%s/%s/archive/%s.zip", req.Org, req.Project, req.Application, req.Ref)
+	resp, err := hc.Get(host).Path(path).
+		Header(httputil.UserHeader, userID).
+		Do().RAW()
+	if err != nil {
+		return "", apierrors.ErrInvoke.InternalError(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode/100 != 2 {
+		if resp.StatusCode == 404 {
+			return "", RepoNotExist
+		}
+		return "", fmt.Errorf("archive %s response %d", req.Application, resp.StatusCode)
+	}
+
+	zipfile := fmt.Sprintf("tmp-%d.zip", time.Now().Unix())
+	attachmentInfo := resp.Header.Get("Content-Disposition")
+	attachment := strings.Split(attachmentInfo, "=")
+	if len(attachment) == 2 {
+		zipfile = attachment[1]
+	}
+
+	f, err := os.Create(distDir + "/" + zipfile)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	_, err = io.Copy(f, resp.Body)
+	if err != nil {
+		return zipfile, err
+	}
+
+	return zipfile, nil
+}
+
+func (b *Bundle) MergeWithBranch(userID string, req apistructs.GittarMergeWithBranchRequest) (*apistructs.Commit, error) {
+	var (
+		host string
+		err  error
+		rsp  apistructs.MergeWithBranchResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	path := fmt.Sprintf("/app-repo/%d/merge-with-branch", req.AppID)
+	resp, err := hc.Post(host).
+		Header(httputil.UserHeader, userID).
+		Path(path).
+		JSONBody(req).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+
+	if !resp.IsOK() {
+		return nil, apierrors.ErrInvoke.InternalError(errors.Errorf(rsp.Header.Error.Msg))
+	}
+	return rsp.Data, nil
+}
+
+func (b *Bundle) GetMergeBase(userID string, req apistructs.GittarMergeBaseRequest) (*apistructs.Commit, error) {
+	var (
+		host string
+		err  error
+		rsp  apistructs.MergeBaseResponse
+	)
+	hc := b.hc
+	host, err = b.urls.Gittar()
+	if err != nil {
+		return nil, err
+	}
+
+	path := fmt.Sprintf("/app-repo/%d/merge-base", req.AppID)
+	resp, err := hc.Get(host).
+		Header(httputil.UserHeader, userID).
+		Path(path).
+		Param("sourceBranch", req.SourceBranch).
+		Param("targetBranch", req.TargetBranch).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+
+	if !resp.IsOK() {
+		return nil, apierrors.ErrInvoke.InternalError(errors.Errorf("failed to merge base"))
+	}
+	return rsp.Data, nil
 }

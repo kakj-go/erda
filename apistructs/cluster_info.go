@@ -15,10 +15,16 @@
 package apistructs
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/erda-project/erda/pkg/strutil"
+)
+
+const (
+	ConfigMapNameOfClusterInfo = "dice-cluster-info" // ConfigMapNameOfClusterInfo cluster info configmap name
+	ConfigMapNameOfAddons      = "dice-addons-info"  // ConfigMapNameOfAddons addon configmap name
 )
 
 const (
@@ -45,12 +51,14 @@ const (
 	REGISTRY_USERNAME       ClusterInfoMapKey = "REGISTRY_USERNAME"       // registry username
 	REGISTRY_PASSWORD       ClusterInfoMapKey = "REGISTRY_PASSWORD"       // registry password
 	SOLDIER_ADDR            ClusterInfoMapKey = "SOLDIER_ADDR"            // soldier的地址
-	NETPORTAL_URL           ClusterInfoMapKey = "NETPORTAL_URL"           // netportal的集群入口url
 	EDASJOB_CLUSTER_NAME    ClusterInfoMapKey = "EDASJOB_CLUSTER_NAME"    // edas 集群可能会使用别的集群运行 JOB，若该字段为空，则说明使用本集群运行 JOB
 	CLUSTER_DNS             ClusterInfoMapKey = "CLUSTER_DNS"             // k8s 或 dcos 内部域名服务器，逗号分隔
 	ISTIO_ALIYUN            ClusterInfoMapKey = "ISTIO_ALIYUN"            // 是否用aliyn asm，true or false
 	ISTIO_INSTALLED         ClusterInfoMapKey = "ISTIO_INSTALLED"         // 是否启用了 istio
 	ISTIO_VERSION           ClusterInfoMapKey = "ISTIO_VERSION"           // istio 的版本
+	JOB_CLUSTER             ClusterInfoMapKey = "JOB_CLUSTER"             // specify the job execute cluster
+
+	CLUSTER_SC_VENDOR ClusterInfoMapKey = "CLOUD_PROVISIONER" // k8s 集群的 SC Vendor（如 Tecent 或 Alibaba）
 )
 
 type ClusterInfoResponse struct {
@@ -103,6 +111,18 @@ func (info ClusterInfoData) MustGetPublicURL(component string) string {
 		info.MustGet(DICE_ROOT_DOMAIN),
 		port,
 	)
+}
+
+func TransferToClusterInfoData(data map[string]string) (ClusterInfoData, error) {
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		return nil, err
+	}
+	var clusterData ClusterInfoData
+	if err := json.Unmarshal(dataBytes, &clusterData); err != nil {
+		return nil, err
+	}
+	return clusterData, nil
 }
 
 // DiceProtocolIsHTTPS 判断 DiceProtocol 是否支持 HTTPS

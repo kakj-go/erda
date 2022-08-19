@@ -30,8 +30,6 @@ type Sender = string
 
 // Event sender collections
 const (
-	SenderCMDB           Sender = "cmdb"
-	SenderDiceHub        Sender = "dicehub"
 	SenderScheduler      Sender = "scheduler"
 	SenderOrchestrator   Sender = "orchestrator"
 	SenderCoreServices   Sender = "coreServices"
@@ -65,7 +63,7 @@ const (
 
 // CreateEvent 创建一个 event 发送到 eventbox 服务.
 func (b *Bundle) CreateEvent(ev *apistructs.EventCreateRequest) error {
-	host, err := b.urls.EventBox()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -90,7 +88,7 @@ func (b *Bundle) CreateEvent(ev *apistructs.EventCreateRequest) error {
 }
 
 func (b *Bundle) CreateEventNotify(ev *apistructs.EventBoxRequest) error {
-	host, err := b.urls.EventBox()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -115,7 +113,7 @@ func (b *Bundle) CreateEventNotify(ev *apistructs.EventBoxRequest) error {
 }
 
 func (b *Bundle) CreateMboxNotify(templatename string, params map[string]string, locale string, orgid uint64, users []string) error {
-	host, err := b.urls.EventBox()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -154,8 +152,45 @@ func (b *Bundle) CreateMboxNotify(templatename string, params map[string]string,
 	return nil
 }
 
+func (b *Bundle) CreateDingTalkWorkNotify(templatename string, params map[string]string, locale string, orgid uint64, mobiles []string) error {
+	host, err := b.urls.ErdaServer()
+	if err != nil {
+		return err
+	}
+	hc := b.hc
+	request := map[string]interface{}{
+		"template": b.GetLocaleLoader().Locale(locale).Get(templatename),
+		"type":     "markdown",
+		"params":   params,
+		"orgID":    int64(orgid),
+	}
+	eventBoxRequest := &apistructs.EventBoxRequest{
+		Sender: "bundle",
+		Labels: map[string]interface{}{
+			"DINGTALK_WORK_NOTICE": mobiles,
+		},
+		Content: request,
+	}
+	var buf bytes.Buffer
+	resp, err := hc.Post(host).Path("/api/dice/eventbox/message/create").
+		Header("Accept", "application/json").
+		JSONBody(&eventBoxRequest).
+		Do().Body(&buf)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return apierrors.ErrInvoke.InternalError(
+			errors.Errorf("failed to create ding-talk-work-notice, status-code: %d, body: %v",
+				resp.StatusCode(),
+				buf.String(),
+			))
+	}
+	return nil
+}
+
 func (b *Bundle) CreateEmailNotify(templatename string, params map[string]string, locale string, orgid uint64, emailaddrs []string) error {
-	host, err := b.urls.EventBox()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -195,7 +230,7 @@ func (b *Bundle) CreateEmailNotify(templatename string, params map[string]string
 }
 
 func (b *Bundle) CreateGroupNotifyEvent(groupNotifyRequest apistructs.EventBoxGroupNotifyRequest) error {
-	host, err := b.urls.EventBox()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -260,6 +295,16 @@ func (b *Bundle) CreateGroupNotifyEvent(groupNotifyRequest apistructs.EventBoxGr
 				channelData.Template = notifyItem.MarkdownTemplate
 			}
 			eventboxReqContent.Channels = append(eventboxReqContent.Channels, channelData)
+		} else if channel == "webhook" {
+			channelData := apistructs.GroupNotifyChannel{
+				Name:     channel,
+				Template: notifyItem.MBoxTemplate, // TODO webhook template
+				Params:   params,
+			}
+			if channelData.Template == "" {
+				channelData.Template = notifyItem.MarkdownTemplate
+			}
+			eventboxReqContent.Channels = append(eventboxReqContent.Channels, channelData)
 		}
 	}
 	eventBoxRequest.Content = eventboxReqContent
@@ -283,14 +328,14 @@ func (b *Bundle) CreateGroupNotifyEvent(groupNotifyRequest apistructs.EventBoxGr
 }
 
 func (b *Bundle) CreateWebhook(r apistructs.CreateHookRequest) error {
-	host, err := b.urls.EventBox()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
 	hc := b.hc
 	list := apistructs.WebhookListResponse{}
 	resp, err := hc.Get(host).Path("/api/dice/eventbox/webhooks").
-		Param("orgid", r.Org).
+		Param("orgId", r.Org).
 		Header("Accept", "application/json").
 		Do().JSON(&list)
 	if err != nil {
@@ -347,6 +392,61 @@ func (b *Bundle) CreateWebhook(r apistructs.CreateHookRequest) error {
 	if !createbody.Success {
 		return apierrors.ErrInvoke.InternalError(
 			errors.Errorf("failed to create webhook: %+v", createbody.Error))
+	}
+	return nil
+}
+
+func (b *Bundle) DeleteWebhook(r apistructs.DeleteHookRequest) error {
+	host, err := b.urls.ErdaServer()
+	if err != nil {
+		return err
+	}
+	hc := b.hc
+	list := apistructs.WebhookListResponse{}
+	resp, err := hc.Get(host).Path("/api/dice/eventbox/webhooks").
+		Param("orgId", r.Org).
+		Header("Accept", "application/json").
+		Do().JSON(&list)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return apierrors.ErrInvoke.InternalError(
+			errors.Errorf("failed to list webhook, status-code: %d", resp.StatusCode()))
+	}
+
+	if !list.Success {
+		return apierrors.ErrInvoke.InternalError(errors.New(list.Error.Msg))
+	}
+
+	for i := range list.Data {
+		// delete webhook if already exist
+		if list.Data[i].Name == r.Name {
+			req := apistructs.WebhookDeleteRequestBody{
+				OrgId:         r.Org,
+				ProjectId:     r.Project,
+				ApplicationId: r.Application,
+				Id:            list.Data[i].ID,
+			}
+			var deleteRsp apistructs.WebhookDeleteResponse
+			resp, err := hc.Delete(host).Path("/api/dice/eventbox/webhooks/"+list.Data[i].ID).
+				Header("Accept", "application/json").
+				Header("Internal-Client", "bundle").
+				JSONBody(&req).
+				Do().JSON(&deleteRsp)
+			if err != nil {
+				return apierrors.ErrInvoke.InternalError(err)
+			}
+			if !resp.IsOK() {
+				return apierrors.ErrInvoke.InternalError(
+					errors.Errorf("failed to delete webhook, status-code: %d", resp.StatusCode()))
+			}
+			if !deleteRsp.Success {
+				return apierrors.ErrInvoke.InternalError(
+					errors.Errorf("failed to delete webhook: %+v", deleteRsp.Error))
+			}
+			return nil
+		}
 	}
 	return nil
 }

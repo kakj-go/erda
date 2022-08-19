@@ -14,7 +14,9 @@
 
 package apistructs
 
-import "time"
+import (
+	"time"
+)
 
 type RuntimeInspectDTO struct {
 	ID uint64 `json:"id"`
@@ -36,15 +38,27 @@ type RuntimeInspectDTO struct {
 	ProjectID    uint64                               `json:"projectID"`
 	Services     map[string]*RuntimeInspectServiceDTO `json:"services"`
 	// 模块发布错误信息
-	ModuleErrMsg map[string]map[string]string `json:"lastMessage"`
-	TimeCreated  time.Time                    `json:"timeCreated"` // Deprecated: use CreatedAt instead
-	CreatedAt    time.Time                    `json:"createdAt"`
-	UpdatedAt    time.Time                    `json:"updatedAt"`
-	Errors       []ErrorResponse              `json:"errors"`
+	ModuleErrMsg        map[string]map[string]string `json:"lastMessage"`
+	TimeCreated         time.Time                    `json:"timeCreated"` // Deprecated: use CreatedAt instead
+	CreatedAt           time.Time                    `json:"createdAt"`
+	UpdatedAt           time.Time                    `json:"updatedAt"`
+	DeployAt            time.Time                    `json:"deployAt"`
+	Errors              []ErrorResponse              `json:"errors"`
+	Creator             string                       `json:"creator"`
+	ApplicationID       uint64                       `json:"applicationId"`
+	ApplicationName     string                       `json:"applicationName"`
+	DeploymentOrderId   string                       `json:"deploymentOrderId"`
+	DeploymentOrderName string                       `json:"deploymentOrderName"`
+	ReleaseVersion      string                       `json:"releaseVersion"`
+	RawStatus           string                       `json:"rawStatus"`
+	RawDeploymentStatus string                       `json:"rawDeploymentStatus"`
 }
 
 type RuntimeInspectServiceDTO struct {
 	Status      string                       `json:"status"`
+	HPAEnabled  string                       `json:"hpaEnabled"`
+	VPAEnabled  string                       `json:"vpaEnabled"`
+	Type        string                       `json:"type"`
 	Deployments RuntimeServiceDeploymentsDTO `json:"deployments"`
 	Resources   RuntimeServiceResourceDTO    `json:"resources"`
 	Envs        map[string]string            `json:"envs"`
@@ -59,6 +73,7 @@ type RuntimeSummaryDTO struct {
 	LastOperatorName   string    `json:"lastOperatorName"`   // Deprecated
 	LastOperatorAvatar string    `json:"lastOperatorAvatar"` // Deprecated
 	LastOperateTime    time.Time `json:"lastOperateTime"`
+	LastOperatorId     uint64    `json:"lastOperatorId"`
 }
 
 type RuntimeDTO struct {
@@ -98,19 +113,6 @@ type RuntimeServiceResourceDTO struct {
 	CPU  float64 `json:"cpu"`
 	Mem  int     `json:"mem"`
 	Disk int     `json:"disk"`
-}
-
-// TODO: same as spec.RuntimeInstance, need to combine two
-type RuntimeInstanceDTO struct {
-	ID          uint64    `json:"id"`
-	InstanceID  string    `json:"instanceId"`
-	RuntimeID   uint64    `json:"runtimeId"`
-	ServiceName string    `json:"serviceName"`
-	IP          string    `json:"ip"`
-	Status      string    `json:"status"`
-	Stage       string    `json:"stage"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type DeploymentStatusDTO struct {
@@ -167,4 +169,81 @@ type RuntimeDeployDTO struct {
 	OrgID           uint64   `json:"orgId"`
 	OrgName         string   `json:"orgName"`
 	ServicesNames   []string `json:"servicesNames"`
+}
+
+type RuntimeScaleRecords struct {
+	// Runtimes 不为空则无需设置 IDs, 二者必选其一
+	Runtimes []RuntimeScaleRecord `json:"runtimeRecords,omitempty"`
+	// IDs 不为空则无需设置 Runtimes, 二者必选其一
+	IDs []uint64 `json:"ids,omitempty"`
+}
+
+type RuntimeScaleRecord struct {
+	ApplicationId uint64     `json:"applicationId"`
+	Workspace     string     `json:"workspace"`
+	Name          string     `json:"name"`
+	RuntimeID     uint64     `json:"runtimeId,omitempty"`
+	PayLoad       PreDiceDTO `json:"payLoad,omitempty"`
+	ErrMsg        string     `json:"errorMsg,omitempty"`
+}
+
+type BatchRuntimeScaleResults struct {
+	Total           int                  `json:"total"`
+	Successed       int                  `json:"successed"`
+	Faild           int                  `json:"failed"`
+	SuccessedScales []PreDiceDTO         `json:"successedRuntimeScales,omitempty"`
+	SuccessedIds    []uint64             `json:"successedIds,omitempty"`
+	FailedScales    []RuntimeScaleRecord `json:"FailedRuntimeScales,omitempty"`
+	FailedIds       []uint64             `json:"FailedIds,omitempty"`
+}
+
+type BatchRuntimeDeleteResults struct {
+	Total        int          `json:"total"`
+	Success      int          `json:"success"`
+	Failed       int          `json:"failed"`
+	Deleted      []RuntimeDTO `json:"deleted,omitempty"`
+	DeletedIds   []uint64     `json:"deletedIds,omitempty"`
+	UnDeleted    []RuntimeDTO `json:"deletedFailed,omitempty"`
+	UnDeletedIds []uint64     `json:"deletedFailedIds,omitempty"`
+	ErrMsg       []string     `json:"errorMsgs,omitempty,omitempty"`
+}
+
+type BatchRuntimeReDeployResults struct {
+	Total           int                `json:"total"`
+	Success         int                `json:"success"`
+	Failed          int                `json:"failed"`
+	ReDeployed      []RuntimeDeployDTO `json:"reDeployed,omitempty"`
+	ReDeployedIds   []uint64           `json:"reDeployedIds,omitempty"`
+	UnReDeployed    []RuntimeDTO       `json:"reDeployedFailed,omitempty"`
+	UnReDeployedIds []uint64           `json:"reDeployedFailedIds,omitempty"`
+	ErrMsg          []string           `json:"errorMsgs,omitempty"`
+}
+
+// AddonScaleRecords 表示 Addon 的 scale 请求群信息
+type AddonScaleRecords struct {
+	// Addons 不为空则无需设置 AddonRoutingIDs, 二者必选其一
+	// 格式: map[{addon instance's routing ID}]AddonScaleRecord
+	Addons map[string]AddonScaleRecord `json:"addonScaleRecords,omitempty"`
+	// AddonRoutingIDs is the list of addon instance's routing ID
+	AddonRoutingIDs []string `json:"ids,omitempty"`
+}
+
+// AddonScaleRecord is the addon
+type AddonScaleRecord struct {
+	AddonName                   string                                      `json:"addonName,omitempty"`
+	ServiceResourcesAndReplicas map[string]AddonServiceResourcesAndReplicas `json:"services,omitempty"`
+}
+
+// AddonServiceResourcesAndReplicas set the desired resources and replicas for addon services
+type AddonServiceResourcesAndReplicas struct {
+	Resources Resources `json:"resources,omitempty"`
+	Replicas  int32     `json:"replicas,omitempty"`
+}
+
+type AddonScaleResults struct {
+	Total     int `json:"total"`
+	Successed int `json:"successed"`
+	Faild     int `json:"failed"`
+	// FailedInfo   map[{addon routingID}]errMsg
+	FailedInfo map[string]string `json:"errors,omitempty"`
 }

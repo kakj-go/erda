@@ -37,6 +37,9 @@ type ApplicationCreateRequest struct {
 	IsExternalRepo bool `json:"isExternalRepo"`
 	// 仓库配置 isExternalRepo=true时设置
 	RepoConfig *GitRepoConfig `json:"repoConfig"`
+
+	// external-server sonar config
+	SonarConfig *SonarConfig `json:"sonarConfig"`
 }
 
 // ApplicationCreateResponse POST /api/applications 创建应用返回结构
@@ -84,6 +87,8 @@ type ApplicationUpdateRequestBody struct {
 
 	// 是否公开
 	IsPublic bool `json:"isPublic"`
+
+	SonarConfig *SonarConfig `json:"sonarConfig"`
 }
 
 // ApplicationUpdateResponse 应用更新响应结构
@@ -135,6 +140,8 @@ type ApplicationListRequest struct {
 	PageSize int    `query:"pageSize"`
 	Public   string `query:"public"`
 	OrderBy  string `query:"orderBy"`
+
+	ApplicationID []uint64 `query:"applicationID"`
 
 	// 是否只返回简单信息(应用级流水线打开列表使用)
 	IsSimple bool `query:"isSimple"`
@@ -191,6 +198,8 @@ type ApplicationDTO struct {
 
 	RepoConfig *GitRepoConfig `json:"repoConfig"`
 
+	SonarConfig *SonarConfig `json:"sonarConfig"`
+
 	// 成员对应的角色
 	MemberRoles []string `json:"memberRoles"`
 
@@ -201,6 +210,15 @@ type ApplicationDTO struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	Extra string `json:"-"`
+}
+
+type GetAppIDByNamesResponse struct {
+	Header
+	Data GetAppIDByNamesResponseData `json:"data"`
+}
+
+type GetAppIDByNamesResponseData struct {
+	AppNameToID map[string]int64 `json:"appNameToID"`
 }
 
 // ApplicationWorkspace 应用工作空间

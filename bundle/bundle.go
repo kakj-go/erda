@@ -19,6 +19,8 @@
 package bundle
 
 import (
+	"context"
+	"net"
 	"os"
 	"time"
 
@@ -29,9 +31,10 @@ import (
 
 // Bundle 定义了所有方法的集合对象.
 type Bundle struct {
-	hc         *httpclient.HTTPClient
-	i18nLoader *i18n.LocaleResourceLoader
-	urls       urls
+	hc          *httpclient.HTTPClient
+	i18nLoader  *i18n.LocaleResourceLoader
+	urls        urls
+	dialContext func(ctx context.Context, network, addr string) (net.Conn, error)
 }
 
 // Option 定义 Bundle 对象的配置选项.
@@ -47,12 +50,13 @@ func New(options ...Option) *Bundle {
 	}
 	if b.hc == nil {
 		b.hc = httpclient.New(
+			httpclient.WithDialContext(b.dialContext),
 			httpclient.WithTimeout(time.Second*60, time.Second*60),
 		)
 	}
 	if b.i18nLoader == nil {
 		b.i18nLoader = i18n.NewLoader()
-		b.i18nLoader.LoadDir("erda-configs/i18n")
+		b.i18nLoader.LoadDir("common-conf/erda-configs/i18n")
 		b.i18nLoader.DefaultLocale("zh-CN")
 	}
 	return b
@@ -99,9 +103,9 @@ func WithCMDB() Option {
 	}
 }
 
-func WithCoreServices() Option {
+func WithErdaServer() Option {
 	return func(b *Bundle) {
-		k := discover.EnvCoreServices
+		k := discover.EnvErdaServer
 		v := os.Getenv(k)
 		b.urls.Put(k, v)
 	}
@@ -110,15 +114,6 @@ func WithCoreServices() Option {
 func WithDOP() Option {
 	return func(b *Bundle) {
 		k := discover.EnvDOP
-		v := os.Getenv(k)
-		b.urls.Put(k, v)
-	}
-}
-
-// WithDiceHub 根据环境变量配置创建 dicehub 客户端.
-func WithDiceHub() Option {
-	return func(b *Bundle) {
-		k := discover.EnvDiceHub
 		v := os.Getenv(k)
 		b.urls.Put(k, v)
 	}
@@ -278,12 +273,9 @@ func WithClusterManager() Option {
 	}
 }
 
-// WithECP create ecp client with CLUSTER_MANAGER
-func WithECP() Option {
+func WithDialContext(dialContext func(ctx context.Context, network string, address string) (net.Conn, error)) Option {
 	return func(b *Bundle) {
-		k := discover.EnvECP
-		v := os.Getenv(k)
-		b.urls.Put(k, v)
+		b.dialContext = dialContext
 	}
 }
 

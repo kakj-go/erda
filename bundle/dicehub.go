@@ -23,7 +23,7 @@ import (
 )
 
 func (b *Bundle) GetExtensionVersion(req apistructs.ExtensionVersionGetRequest) (*apistructs.ExtensionVersion, error) {
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (b *Bundle) GetExtensionVersion(req apistructs.ExtensionVersionGetRequest) 
 }
 
 func (b *Bundle) QueryExtensionVersions(req apistructs.ExtensionVersionQueryRequest) ([]apistructs.ExtensionVersion, error) {
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,9 @@ func (b *Bundle) QueryExtensionVersions(req apistructs.ExtensionVersionQueryRequ
 
 	var getResp apistructs.ExtensionVersionQueryResponse
 	resp, err := hc.Get(host).Path(fmt.Sprintf("/api/extensions/%v", req.Name)).
-		Param("all", req.All).
+		Param("all", strconv.FormatBool(req.All)).
+		Param("yamlFormat", strconv.FormatBool(req.YamlFormat)).
+		Param("orderByVersionDesc", strconv.FormatBool(req.OrderByVersionDesc)).
 		Header("Internal-Client", "bundle").
 		Do().JSON(&getResp)
 	if err != nil {
@@ -65,7 +67,7 @@ func (b *Bundle) QueryExtensionVersions(req apistructs.ExtensionVersionQueryRequ
 }
 
 func (b *Bundle) QueryExtensions(req apistructs.ExtensionQueryRequest) ([]apistructs.Extension, error) {
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +75,7 @@ func (b *Bundle) QueryExtensions(req apistructs.ExtensionQueryRequest) ([]apistr
 
 	var getResp apistructs.ExtensionQueryResponse
 	resp, err := hc.Get(host).Path("/api/extensions").
-		Param("all", req.All).
+		Param("all", strconv.FormatBool(req.All)).
 		Param("type", req.Type).
 		Header("Internal-Client", "bundle").
 		Do().JSON(&getResp)
@@ -87,7 +89,7 @@ func (b *Bundle) QueryExtensions(req apistructs.ExtensionQueryRequest) ([]apistr
 }
 
 func (b *Bundle) SearchExtensions(req apistructs.ExtensionSearchRequest) (map[string]apistructs.ExtensionVersion, error) {
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +110,7 @@ func (b *Bundle) SearchExtensions(req apistructs.ExtensionSearchRequest) (map[st
 }
 
 func (b *Bundle) GetPublishItem(publishItemID int64) (*apistructs.PublishItem, error) {
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.DOP()
 	if err != nil {
 		return nil, err
 	}
@@ -129,7 +131,7 @@ func (b *Bundle) GetPublishItem(publishItemID int64) (*apistructs.PublishItem, e
 
 func (b *Bundle) RenderPipelineTemplate(request *apistructs.PipelineTemplateRenderRequest) (*apistructs.PipelineTemplateRender, error) {
 
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.DOP()
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +154,7 @@ func (b *Bundle) RenderPipelineTemplate(request *apistructs.PipelineTemplateRend
 
 func (b *Bundle) RenderPipelineTemplateBySpec(request *apistructs.PipelineTemplateRenderSpecRequest) (*apistructs.PipelineTemplateRender, error) {
 
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.DOP()
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +177,7 @@ func (b *Bundle) RenderPipelineTemplateBySpec(request *apistructs.PipelineTempla
 
 func (b *Bundle) GetPipelineTemplateVersion(request *apistructs.PipelineTemplateVersionGetRequest) (*apistructs.PipelineTemplateVersion, error) {
 
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.DOP()
 	if err != nil {
 		return nil, err
 	}

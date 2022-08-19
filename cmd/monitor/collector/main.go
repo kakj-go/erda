@@ -15,31 +15,47 @@
 package main
 
 import (
+	_ "embed"
+	"os"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
-	"github.com/erda-project/erda/conf"
 	"github.com/erda-project/erda/pkg/common"
 
 	// modules
 	_ "github.com/erda-project/erda-infra/providers/health"
 	_ "github.com/erda-project/erda-infra/providers/kafka"
+	_ "github.com/erda-project/erda-infra/providers/kubernetes"
 	_ "github.com/erda-project/erda-infra/providers/pprof"
+	_ "github.com/erda-project/erda-infra/providers/prometheus"
+	_ "github.com/erda-project/erda-infra/providers/serviceregister"
 
 	// providers
-	_ "github.com/erda-project/erda-infra/providers"
-	_ "github.com/erda-project/erda/modules/core/monitor/collector"
-	_ "github.com/erda-project/erda/modules/oap/collector/authentication"
-	_ "github.com/erda-project/erda/modules/oap/collector/receivers/common"
-	_ "github.com/erda-project/erda/modules/oap/collector/receivers/jaeger"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/collector"
+	_ "github.com/erda-project/erda/internal/tools/monitor/oap/collector/authentication"
+	_ "github.com/erda-project/erda/internal/tools/monitor/oap/collector/interceptor"
 
 	// grpc
 	_ "github.com/erda-project/erda-infra/providers/grpcclient"
-	_ "github.com/erda-project/erda-proto-go/core/services/authentication/credentials/accesskey/client"
+	_ "github.com/erda-project/erda-proto-go/core/token/client"
+
+	// pipeline collector
+	_ "github.com/erda-project/erda/internal/tools/monitor/oap/collector/core"
+	_ "github.com/erda-project/erda/internal/tools/monitor/oap/collector/plugins/all"
 )
 
-//go:generate sh -c "cd ${PROJ_PATH} && go generate -v -x github.com/erda-project/erda/modules/monitor/core/collector"
+//go:embed bootstrap.yaml
+var centralBootstrapCfg string
+
+//go:embed bootstrap-agent.yaml
+var edgeBootstrapCfg string
+
+//go:generate sh -c "cd ${PROJ_PATH} && go generate -v -x github.com/erda-project/erda/internal/tools/monitor/core/collector"
 func main() {
+	cfg := centralBootstrapCfg
+	if os.Getenv("DICE_IS_EDGE") == "true" {
+		cfg = edgeBootstrapCfg
+	}
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: conf.MonitorCollectorConfigFilePath,
-		Content:    conf.MonitorCollectorDefaultConfig,
+		Content: cfg,
 	})
 }

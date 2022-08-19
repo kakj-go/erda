@@ -22,21 +22,21 @@ import (
 	"reflect"
 	"strconv"
 
-	validator "github.com/mwitkow/go-proto-validators"
-
 	"github.com/erda-project/erda-infra/base/servicehub"
 	"github.com/erda-project/erda-infra/pkg/transport"
+	transgrpc "github.com/erda-project/erda-infra/pkg/transport/grpc"
 	transhttp "github.com/erda-project/erda-infra/pkg/transport/http"
 	"github.com/erda-project/erda-infra/pkg/transport/http/encoding"
 	"github.com/erda-project/erda-infra/pkg/transport/interceptor"
 	"github.com/erda-project/erda-infra/providers/i18n"
 	"github.com/erda-project/erda/pkg/common"
 	"github.com/erda-project/erda/pkg/common/errors"
+	"github.com/erda-project/erda/pkg/http/httpserver/errorresp"
 )
 
 // Response .
 type Response struct {
-	Success bool        `json:"success,omitempty"`
+	Success bool        `json:"success"`
 	Data    interface{} `json:"data,omitempty"`
 	UserIDs []string    `json:"userIDs,omitempty"`
 	Err     *Error      `json:"err,omitempty"`
@@ -76,19 +76,19 @@ func init() {
 	})
 }
 
-var validateErrorType = reflect.TypeOf(validator.FieldError("", nil))
-
 func encodeError(w http.ResponseWriter, r *http.Request, err error) {
 	var status int
-	if e, ok := err.(transhttp.Error); ok {
-		status = e.HTTPStatus()
-	} else {
-		typ := reflect.TypeOf(err)
-		if typ == validateErrorType {
-			status = http.StatusBadRequest
-		} else {
-			status = http.StatusInternalServerError
-		}
+	switch err.(type) {
+	case transhttp.Error:
+		status = err.(transhttp.Error).HTTPStatus()
+	case *errorresp.APIError:
+		apiErr := err.(*errorresp.APIError)
+		apiErr.Write(w)
+		return
+	case ValidationError:
+		status = http.StatusBadRequest
+	default:
+		status = http.StatusInternalServerError
 	}
 	var msg string
 	if e, ok := err.(i18n.Internationalizable); I18n != nil && ok {
@@ -124,6 +124,16 @@ func (w *responseWriter) Write(b []byte) (int, error) {
 	return w.ResponseWriter.Write(b)
 }
 
+func wrapGrpcError(h interceptor.Handler) interceptor.Handler {
+	return func(ctx context.Context, req interface{}) (interface{}, error) {
+		resp, err := h(ctx, req)
+		if err != nil {
+			err = errors.ToGrpcError(err)
+		}
+		return resp, err
+	}
+}
+
 func wrapResponse(h interceptor.Handler) interceptor.Handler {
 	return func(ctx context.Context, req interface{}) (interface{}, error) {
 		resp, err := h(ctx, req)
@@ -148,7 +158,7 @@ func wrapResponse(h interceptor.Handler) interceptor.Handler {
 				case 1:
 					if field := val.FieldByName("Data"); field.IsValid() {
 						resp = field.Interface()
-					} else if field := val.FieldByName("UserIDs"); field.IsValid() && field.Kind() == reflect.Slice && field.Elem().Kind() == reflect.String {
+					} else if field := val.FieldByName("UserIDs"); field.IsValid() && field.Kind() == reflect.Slice && field.Type().Elem().Kind() == reflect.String {
 						resp = nil
 						userIDs = field.Interface().([]string)
 					}
@@ -172,12 +182,26 @@ func wrapResponse(h interceptor.Handler) interceptor.Handler {
 	}
 }
 
+// Define validator and error interface as all related struct in protoc-gen-validate are defined as text templates.
+// i.e. https://github.com/envoyproxy/protoc-gen-validate/blob/main/templates/go/message.go
+type Validator interface {
+	Validate() error
+}
+
+type ValidationError interface {
+	Field() string
+	Reason() string
+	Key() bool
+	Cause() error
+	ErrorName() string
+}
+
 func validRequest(h interceptor.Handler) interceptor.Handler {
 	return func(ctx context.Context, req interface{}) (interface{}, error) {
-		if v, ok := req.(validator.Validator); ok {
+		if v, ok := req.(Validator); ok {
 			err := v.Validate()
 			if err != nil {
-				return nil, errors.ParseValidateError(err)
+				return nil, err
 			}
 		}
 		return h(ctx, req)
@@ -190,5 +214,6 @@ func Options() transport.ServiceOption {
 		transport.WithInterceptors(validRequest)(opts)
 		transport.WithHTTPOptions(transhttp.WithInterceptor(wrapResponse))(opts)
 		transport.WithHTTPOptions(transhttp.WithErrorEncoder(encodeError))(opts)
+		opts.GRPC = append(opts.GRPC, transgrpc.WithInterceptor(wrapGrpcError))
 	})
 }

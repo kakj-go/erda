@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package erda.pkg.dingtalktest;
+option go_package = "github.com/erda-project/erda-proto-go/pkg/dingtalktest/pb";
+import "google/api/annotations.proto";
+import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
+import "common/openapi.proto";
+
+service DingTalkTestService {
+  option (erda.common.openapi_service) = {
+    service: "erda-server",
+    auth: {
+      check_login: true,
+      check_token: true,
+    };
+  };
+  rpc SendTestMessage (DingTalkTestRequest)  returns (DingTalkTestResponse) {
+    option (google.api.http) = {
+      post: "/api/notify/dingtalk-test"
+    };
+    option (common.openapi) = {
+      path: "/api/notify/dingtalk-test"
+      doc: "summary: test send to notification group by DingTalk"
+    };
+  }
+}
+
+message DingTalkTestRequest {
+  string  webhook = 1 [(validate.rules).string.min_len = 1];
+  string  secret = 2 [(validate.rules).string.min_len = 1];
+}
+
+message DingTalkTestResponse {
+  bool    success = 1;
+  string  error = 2;
+}

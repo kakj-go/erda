@@ -15,6 +15,7 @@
 package pipelineyml
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/pkg/errors"
@@ -32,6 +33,8 @@ const (
 // Spec defines pipeline.yml.
 type Spec struct {
 	Version string `yaml:"version"`
+
+	Name string `yaml:"name"`
 
 	On       *TriggerConfig                `yaml:"on,omitempty"`
 	Triggers []*apistructs.PipelineTrigger `yaml:"triggers,omitempty"` // todo Solve the problem that quotation marks will be automatically added after yaml is saved
@@ -123,7 +126,8 @@ type Action struct {
 
 	Workspace string                       `yaml:"workspace,omitempty"`
 	Image     string                       `yaml:"image,omitempty"`
-	Commands  []string                     `yaml:"commands,omitempty"`
+	Shell     string                       `yaml:"shell,omitempty"`
+	Commands  interface{}                  `yaml:"commands,omitempty"`
 	Loop      *apistructs.PipelineTaskLoop `yaml:"loop,omitempty"`
 
 	Timeout int64 `yaml:"timeout,omitempty"` // unit: second
@@ -134,9 +138,13 @@ type Action struct {
 
 	Caches []ActionCache `yaml:"caches,omitempty"` // action 构建缓存
 
+	Policy *Policy `yaml:"policy,omitempty"` // action execution strategy
+
 	SnippetConfig *SnippetConfig `yaml:"snippet_config,omitempty"` // snippet 类型的 action 的配置
 
 	If string `yaml:"if,omitempty"` // 条件执行
+
+	Disable bool `yaml:"disable,omitempty"` // make task disable or enable
 
 	// TODO 在未来版本中，可能去除 stage，依赖关系则必须通过 Needs 来声明。
 	// 目前不开放给用户使用。由 parser 自动赋值。
@@ -159,6 +167,10 @@ type Action struct {
 	// 隐式命名空间为一个 alias，对应流水线上下文目录下的一个目录。
 	// Namespaces 即使声明，同时会注入默认值 alias，也就是说每个 action 至少会有一个 namespace。
 	Namespaces []string `yaml:"namespaces,omitempty"`
+}
+
+type Policy struct {
+	Type apistructs.PolicyType `yaml:"type,omitempty"`
 }
 
 type SnippetConfig struct {
@@ -218,6 +230,18 @@ func (action *Action) GetActionTypeVersion() string {
 		r = r + "@" + action.Version
 	}
 	return r
+}
+
+func (action *Action) GetSliceCommands() ([]string, error) {
+	cmdStr, err := json.Marshal(action.Commands)
+	if err != nil {
+		return nil, err
+	}
+	var cmds []string
+	if err := json.Unmarshal(cmdStr, &cmds); err != nil {
+		return nil, err
+	}
+	return cmds, nil
 }
 
 type Resources struct {
@@ -356,4 +380,51 @@ func (s *Spec) LoopStagesActions(loopDoing func(stage int, action *Action)) {
 			}
 		}
 	}
+}
+
+// CountActionNumByPipelineYml count action total num by pipelineYml
+func CountActionNumByPipelineYml(pipelineYmlStr string) (int64, error) {
+	if pipelineYmlStr == "" {
+		return 0, nil
+	}
+	pipelineYml, err := New([]byte(pipelineYmlStr))
+	if err != nil {
+		return 0, err
+	}
+
+	var totalActionNum int64
+	pipelineYml.Spec().LoopStagesActions(func(stage int, action *Action) {
+		totalActionNum++
+	})
+	return totalActionNum, nil
+}
+
+func GetNameByPipelineYml(pipelineYmlStr string) (string, error) {
+	if pipelineYmlStr == "" {
+		return "", nil
+	}
+	pipelineYml, err := New([]byte(pipelineYmlStr))
+	if err != nil {
+		return "", err
+	}
+	return pipelineYml.Spec().Name, nil
+}
+
+// CountEnabledActionNumByPipelineYml count enabled action by pipelineYml
+func CountEnabledActionNumByPipelineYml(pipelineYmlStr string) (int64, error) {
+	if pipelineYmlStr == "" {
+		return 0, nil
+	}
+	pipelineYml, err := New([]byte(pipelineYmlStr))
+	if err != nil {
+		return 0, err
+	}
+
+	var totalActionNum int64
+	pipelineYml.Spec().LoopStagesActions(func(stage int, action *Action) {
+		if !action.Disable {
+			totalActionNum++
+		}
+	})
+	return totalActionNum, nil
 }

@@ -32,6 +32,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/erda-project/erda/pkg/http/customhttp"
+	"github.com/erda-project/erda/pkg/i18n"
 	"github.com/erda-project/erda/pkg/terminal/loading"
 )
 
@@ -105,6 +106,13 @@ func (r *Request) Do() AfterDo {
 	for k, v := range r.header {
 		req.Header.Set(k, v)
 	}
+
+	// get goroutine context il8n header to bdl request
+	localeName := i18n.GetGoroutineBindLang()
+	if localeName != "" {
+		req.Header.Set(i18n.LangHeader, localeName)
+	}
+
 	for _, v := range r.cookie {
 		req.AddCookie(v)
 	}
@@ -201,6 +209,7 @@ func (r AfterDo) JSON(o interface{}) (*Response, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
 	// check content-type before decode body
 	contentType := resp.Header.Get("Content-Type")
 	body, err := ioutil.ReadAll(resp.Body)
@@ -215,7 +224,7 @@ func (r AfterDo) JSON(o interface{}) (*Response, error) {
 	}
 
 	if err := json.Unmarshal(body, o); err != nil {
-		return nil, fmt.Errorf("failed to Unmarshal JSON, err:%s，body :%s", err, string(body))
+		return nil, fmt.Errorf("failed to Unmarshal JSON, err:%s, body :%s", err, string(body))
 	}
 
 	return &Response{
@@ -226,18 +235,23 @@ func (r AfterDo) JSON(o interface{}) (*Response, error) {
 
 // 适用于a) 如果成功，不关心body内容及其结构体；
 //   并且b) 如果失败，需要把body内容封装进error里返回给上层定位错误
-func (r AfterDo) Body(b *bytes.Buffer) (*Response, error) {
+func (r AfterDo) Body(b io.Writer) (*Response, error) {
 	resp, err := doRequest(r)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	if _, err = io.Copy(b, resp.Body); err != nil {
+	if err = writeBody(b, resp); err != nil {
 		return nil, err
 	}
 	return &Response{
 		internal: resp,
 	}, nil
+}
+
+func writeBody(writer io.Writer, resp *http.Response) error {
+	_, err := io.Copy(writer, resp.Body)
+	return err
 }
 
 // StreamBody 返回 response body, 用于流式读取。

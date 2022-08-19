@@ -15,8 +15,21 @@
 package customhttp
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/erda-project/erda/pkg/discover"
+)
+
+const (
+	queryIPAddr = "127.0.0.1"
+	queryIPPort = "18751"
 )
 
 func Test_parseInetUrl(t *testing.T) {
@@ -117,5 +130,30 @@ func Test_parseInetUrl(t *testing.T) {
 				t.Errorf("parseInetUrl() gotPortalArgs = %v, want %v", gotPortalArgs, tt.wantPortalArgs)
 			}
 		})
+	}
+}
+
+func TestQueryClusterManagerIP(t *testing.T) {
+	http.HandleFunc("/clusterdialer/ip", func(rw http.ResponseWriter, req *http.Request) {
+		res := map[string]interface{}{
+			"succeeded": true,
+			"IP":        queryIPAddr,
+		}
+		data, _ := json.Marshal(res)
+		io.WriteString(rw, string(data))
+	})
+	targetEndpoint := fmt.Sprintf("%s:%s", queryIPAddr, queryIPPort)
+	go http.ListenAndServe(targetEndpoint, nil)
+
+	time.Sleep(1 * time.Second)
+	os.Setenv(discover.EnvClusterDialer, targetEndpoint)
+	res, ok := queryClusterManagerIP("")
+	if !ok {
+		t.Error("failed to get cluster manager ip")
+	}
+
+	ip, _ := res.(string)
+	if ip != targetEndpoint {
+		t.Errorf("got IP: %s, want: %s", ip, targetEndpoint)
 	}
 }

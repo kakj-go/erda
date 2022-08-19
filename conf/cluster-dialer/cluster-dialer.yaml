@@ -1,4 +1,0 @@
-cluster-dialer:
-  listen: ":80"
-  timeout: "${TIMEOUT:60s}"
-  debug: ${DEBUG:false}

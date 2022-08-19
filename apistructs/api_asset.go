@@ -21,10 +21,6 @@ import (
 	"github.com/erda-project/erda/pkg/strutil"
 )
 
-const (
-	UnlimitedSLAName = "无限制 SLA"
-)
-
 type WorkSpace string
 
 const (
@@ -33,6 +29,24 @@ const (
 	WorkspaceStaging WorkSpace = "STAGING"
 	WorkspaceProd    WorkSpace = "PROD"
 )
+
+func (s WorkSpace) Valide() bool {
+	switch s {
+	case WorkspaceDev, WorkspaceTest, WorkspaceStaging, WorkspaceProd:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s WorkSpace) ValideList() string {
+	return strings.Join([]string{
+		string(WorkspaceDev),
+		string(WorkspaceTest),
+		string(WorkspaceStaging),
+		string(WorkspaceProd),
+	}, ",")
+}
 
 type Authentication string
 
@@ -317,6 +331,7 @@ type ContractRecordModel struct {
 	OrgID      uint64    `json:"orgID"`
 	ContractID uint64    `json:"contractID"`
 	Action     string    `json:"action"`
+	SLAName    string    `json:"sla_name" gorm:"sla_name"`
 	CreatorID  string    `json:"creatorID"`
 	CreatedAt  time.Time `json:"createdAt"`
 }

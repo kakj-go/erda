@@ -21,8 +21,9 @@ import (
 	"github.com/erda-project/erda/bundle/apierrors"
 )
 
+// QueryPublishItems queries publish items from dicehub
 func (b *Bundle) QueryPublishItems(req *apistructs.QueryPublishItemRequest) (*apistructs.QueryPublishItemData, error) {
-	host, err := b.urls.DiceHub()
+	host, err := b.urls.DOP()
 	if err != nil {
 		return nil, err
 	}

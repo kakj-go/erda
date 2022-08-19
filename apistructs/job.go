@@ -34,6 +34,24 @@ var (
 	Kubernetes  JobKind = "Kubernetes"
 )
 
+type JobEnv string
+
+var (
+	JobEnvIsK8S      JobEnv = "IS_K8S"
+	JobEnvIsDocker   JobEnv = "IS_DOCKER"
+	JobEnvNamespace  JobEnv = "DICE_NAMESPACE"
+	JobEnvOriginCPU  JobEnv = "DICE_CPU_ORIGIN"
+	JobEnvOriginMEM  JobEnv = "DICE_MEM_ORIGIN"
+	JobEnvRequestCPU JobEnv = "DICE_CPU_REQUEST"
+	JobEnvRequestMEM JobEnv = "DICE_MEM_REQUEST"
+	JobEnvLimitCPU   JobEnv = "DICE_CPU_LIMIT"
+	JobENvLimitMEM   JobEnv = "DICE_MEM_LIMIT"
+)
+
+func (j JobEnv) String() string {
+	return string(j)
+}
+
 type JobVolume struct {
 	Namespace string `json:"namespace"`
 	// 用于生成volume id = <namespace>-<name:>
@@ -78,6 +96,8 @@ type JobFromUser struct {
 	Cmd                     string                 `json:"cmd,omitempty"`
 	CPU                     float64                `json:"cpu,omitempty"`
 	Memory                  float64                `json:"memory,omitempty"`
+	MaxCPU                  float64                `json:"maxCPU,omitempty"`
+	MaxMemory               float64                `json:"maxMemory,omitempty"`
 	Labels                  map[string]string      `json:"labels,omitempty"`
 	Extra                   map[string]string      `json:"extra,omitempty"`
 	Env                     map[string]string      `json:"env,omitempty"`
@@ -91,6 +111,28 @@ type JobFromUser struct {
 	BackoffLimit            int                    `json:"backoffLimit,omitempty"`
 	Params                  map[string]interface{} `json:"params,omitempty"`
 	TaskContainers          []TaskContainer        `json:"taskContainers"`
+
+	ContainerInstanceProvider *ContainerInstanceProvider `json:"containerInstanceProvider,omitempty"` // ContainerInstanceProvider pointer type if not hitted of specified, it will be nil
+}
+
+func (job *JobFromUser) GetOrgName() string {
+	if job.Labels != nil {
+		orgName, ok := job.Labels[EnvDiceOrgName]
+		if ok {
+			return orgName
+		}
+	}
+	return ""
+}
+
+func (job *JobFromUser) GetOrgID() string {
+	if job.Labels != nil {
+		orgID, ok := job.Labels[EnvDiceOrgID]
+		if ok {
+			return orgID
+		}
+	}
+	return ""
 }
 
 // PreFetcher 用于 job 下载功能

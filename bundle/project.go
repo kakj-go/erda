@@ -22,6 +22,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"github.com/erda-project/erda-proto-go/msp/menu/pb"
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/bundle/apierrors"
 	"github.com/erda-project/erda/pkg/discover"
@@ -32,14 +33,24 @@ import (
 
 // GetProject get project by id from core-services.
 func (b *Bundle) GetProject(id uint64) (*apistructs.ProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	return b.GetProjectWithSetter(id)
+}
+
+// GetProjectWithSetter get project by id from core-services.
+func (b *Bundle) GetProjectWithSetter(id uint64, requestSetter ...httpclient.RequestSetter) (*apistructs.ProjectDTO, error) {
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
 	hc := b.hc
 
 	var fetchResp apistructs.ProjectDetailResponse
-	resp, err := hc.Get(host, httpclient.RetryOption{}).Path(fmt.Sprintf("/api/projects/%d", id)).Header(httputil.InternalHeader, "bundle").Do().JSON(&fetchResp)
+	r := hc.Get(host, httpclient.RetryOption{}).Path(fmt.Sprintf("/core/api/projects/%d", id)).
+		Header(httputil.InternalHeader, "bundle")
+	for _, setter := range requestSetter {
+		setter(r)
+	}
+	resp, err := r.Do().JSON(&fetchResp)
 	if err != nil {
 		return nil, apierrors.ErrInvoke.InternalError(err)
 	}
@@ -54,7 +65,7 @@ func (b *Bundle) GetProject(id uint64) (*apistructs.ProjectDTO, error) {
 
 // GetProjectByOrgIdAndName get project by orgId and name from cmdb.
 func (b *Bundle) GetProjectByOrgIdAndName(orgId uint64, name string, userID string) (*apistructs.ProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -76,14 +87,14 @@ func (b *Bundle) GetProjectByOrgIdAndName(orgId uint64, name string, userID stri
 }
 
 func (b *Bundle) ListProject(userID string, req apistructs.ProjectListRequest) (*apistructs.PagingProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
 	hc := b.hc
 
 	var rsp apistructs.ProjectListResponse
-	resp, err := hc.Get(host).Path(fmt.Sprintf("/api/projects")).
+	resp, err := hc.Get(host).Path(fmt.Sprintf("/core/api/projects")).
 		Param("orgId", strconv.FormatUint(req.OrgID, 10)).
 		Param("q", req.Query).
 		Param("name", req.Name).
@@ -141,7 +152,7 @@ func (b *Bundle) ListDopProject(userID string, req apistructs.ProjectListRequest
 
 // ListMyProject 获取用户加入的项目
 func (b *Bundle) ListMyProject(userID string, req apistructs.ProjectListRequest) (*apistructs.PagingProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -158,6 +169,7 @@ func (b *Bundle) ListMyProject(userID string, req apistructs.ProjectListRequest)
 		Param("isPublic", strconv.FormatBool(req.IsPublic)).
 		Param("orderBy", req.OrderBy).
 		Param("asc", strconv.FormatBool(req.Asc)).
+		Param("keepMsp", strconv.FormatBool(req.KeepMsp)).
 		Header("User-ID", userID).
 		Header("Org-ID", strconv.FormatUint(req.OrgID, 10)).
 		Do().JSON(&rsp)
@@ -175,7 +187,7 @@ func (b *Bundle) ListMyProject(userID string, req apistructs.ProjectListRequest)
 
 // ListPublicProject 获取公开项目列表
 func (b *Bundle) ListPublicProject(userID string, req apistructs.ProjectListRequest) (*apistructs.PagingProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -204,9 +216,34 @@ func (b *Bundle) ListPublicProject(userID string, req apistructs.ProjectListRequ
 	return &rsp.Data, nil
 }
 
+func (b *Bundle) ListProjectsEnvAndTenantId(userID, orgID, tenantId, Type string) ([]*apistructs.MenuItem, error) {
+	host, err := b.urls.MSP()
+	if err != nil {
+		return nil, err
+	}
+	hc := b.hc
+
+	var rsp = apistructs.GetMenuResponse{}
+	var req = pb.GetMenuRequest{}
+	req.Type = Type
+	req.TenantId = tenantId
+	resp, err := hc.Get(host).Path(fmt.Sprintf("/api/msp/tenant/menu")).
+		Header("User-ID", userID).
+		Header("Org-ID", orgID).
+		JSONBody(&req).
+		Do().JSON(&rsp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() || !rsp.Success {
+		return nil, toAPIError(resp.StatusCode(), rsp.Error)
+	}
+	return rsp.Data, err
+}
+
 // UpdateProjectActiveTime 更新项目活跃时间
 func (b *Bundle) UpdateProjectActiveTime(req apistructs.ProjectActiveTimeUpdateRequest) error {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -265,7 +302,7 @@ func (b *Bundle) GetWorkspaceClusterByAppBranch(appID uint64, gitRef string) (
 
 // GetProjectNamespaceInfo 获取项目级命名空间信息
 func (b *Bundle) GetProjectNamespaceInfo(projectID uint64) (*apistructs.ProjectNameSpaceInfo, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +378,7 @@ func (b *Bundle) GetMSProjects(orgID, userID string, params url.Values) ([]apist
 
 // GetMyProjectIDs get projectIDs by orgID adn userID from core-services.
 func (b *Bundle) GetMyProjectIDs(orgID uint64, userID string) ([]uint64, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -365,7 +402,7 @@ func (b *Bundle) GetMyProjectIDs(orgID uint64, userID string) ([]uint64, error) 
 
 // GetProjectListByStates list projects by states
 func (b *Bundle) GetProjectListByStates(req apistructs.GetProjectIDListByStatesRequest) (*apistructs.GetProjectIDListByStatesData, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -386,7 +423,7 @@ func (b *Bundle) GetProjectListByStates(req apistructs.GetProjectIDListByStatesR
 
 // GetAllProjects get all projects
 func (b *Bundle) GetAllProjects() ([]apistructs.ProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -407,14 +444,14 @@ func (b *Bundle) GetAllProjects() ([]apistructs.ProjectDTO, error) {
 
 // CreateProject create project
 func (b *Bundle) CreateProject(req apistructs.ProjectCreateRequest, userID string) (uint64, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return 0, err
 	}
 	hc := b.hc
 
 	var fetchResp apistructs.ProjectCreateResponse
-	resp, err := hc.Post(host).Path("/api/projects").
+	resp, err := hc.Post(host).Path("/core/api/projects").
 		Header(httputil.InternalHeader, "bundle").
 		Header(httputil.UserHeader, userID).
 		JSONBody(&req).Do().JSON(&fetchResp)
@@ -430,14 +467,14 @@ func (b *Bundle) CreateProject(req apistructs.ProjectCreateRequest, userID strin
 
 // DeleteProject delete project
 func (b *Bundle) DeleteProject(id, orgID uint64, userID string) (*apistructs.ProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
 	hc := b.hc
 
 	var fetchResp apistructs.ProjectDeleteResponse
-	resp, err := hc.Delete(host).Path(fmt.Sprintf("/api/projects/%d", id)).
+	resp, err := hc.Delete(host).Path(fmt.Sprintf("/core/api/projects/%d", id)).
 		Header(httputil.InternalHeader, "bundle").
 		Header(httputil.UserHeader, userID).
 		Header(httputil.OrgHeader, strconv.FormatUint(orgID, 10)).
@@ -452,17 +489,37 @@ func (b *Bundle) DeleteProject(id, orgID uint64, userID string) (*apistructs.Pro
 	return &fetchResp.Data, nil
 }
 
+func (b *Bundle) UpdateProject(req apistructs.ProjectUpdateRequest, orgID uint64, userID string) error {
+	host, err := b.urls.ErdaServer()
+	if err != nil {
+		return err
+	}
+	hc := b.hc
+
+	var updateResp apistructs.ProjectUpdateResponse
+	resp, err := hc.Put(host).Path(fmt.Sprintf("/api/projects/%d", req.ProjectID)).
+		Header(httputil.InternalHeader, "bundle").
+		Header(httputil.UserHeader, userID).
+		Header(httputil.OrgHeader, strconv.FormatUint(orgID, 10)).
+		JSONBody(&req.Body).Do().JSON(&updateResp)
+	if err != nil {
+		return apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() {
+		return toAPIError(resp.StatusCode(), updateResp.Error)
+	}
+
+	return nil
+}
+
 // Get projects map
-func (b *Bundle) GetProjectsMap(projectIDs []uint64) (map[uint64]apistructs.ProjectDTO, error) {
-	host, err := b.urls.CoreServices()
+func (b *Bundle) GetProjectsMap(req apistructs.GetModelProjectsMapRequest) (map[uint64]apistructs.ProjectDTO, error) {
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
 	hc := b.hc
 
-	req := apistructs.GetModelProjectsMapRequest{
-		ProjectIDs: projectIDs,
-	}
 	var rsp apistructs.GetModelProjectsMapResponse
 	resp, err := hc.Get(host).Path("/api/projects/actions/get-projects-map").
 		Header(httputil.InternalHeader, "bundle").JSONBody(&req).Do().JSON(&rsp)

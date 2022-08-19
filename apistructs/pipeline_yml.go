@@ -26,6 +26,7 @@ const (
 	ActionTypeAPITest      = "api-test"
 	ActionTypeSnippet      = "snippet"
 	ActionTypeCustomScript = "custom-script"
+	ActionTypeWait         = "wait"
 
 	SnippetSourceLocal = "local"
 )
@@ -38,12 +39,13 @@ const (
 
 type PipelineYml struct {
 	// 用于构造 pipeline yml
-	Version         string                 `json:"version"`                   // 版本
-	Envs            map[string]string      `json:"envs,omitempty"`            // 环境变量
-	Cron            string                 `json:"cron,omitempty"`            // 定时配置
-	CronCompensator *CronCompensator       `json:"cronCompensator,omitempty"` // 定时补偿配置
-	Stages          [][]*PipelineYmlAction `json:"stages"`                    // 流水线
-	FlatActions     []*PipelineYmlAction   `json:"flatActions"`               // 展平了的流水线
+	Version         string                 `json:"version"` // 版本
+	Name            string                 `json:"name"`
+	Envs            map[string]string      `json:"envs,omitempty"`                                             // 环境变量
+	Cron            string                 `json:"cron,omitempty"`                                             // 定时配置
+	CronCompensator *CronCompensator       `json:"cronCompensator,omitempty" yaml:"cronCompensator,omitempty"` // 定时补偿配置
+	Stages          [][]*PipelineYmlAction `json:"stages"`                                                     // 流水线
+	FlatActions     []*PipelineYmlAction   `json:"flatActions"`                                                // 展平了的流水线
 
 	Params []*PipelineParam `json:"params,omitempty"` // 流水线输入
 
@@ -93,7 +95,8 @@ type PipelineYmlAction struct {
 	Version       string                 `json:"version,omitempty"`                                        // action 版本
 	Params        map[string]interface{} `json:"params,omitempty"`                                         // 参数
 	Image         string                 `json:"image,omitempty"`                                          // 镜像
-	Commands      []string               `json:"commands,omitempty"`                                       // 命令行
+	Shell         string                 `json:"shell,omitempty"`                                          // shell, like sh,python,nu
+	Commands      interface{}            `json:"commands,omitempty"`                                       // 命令行
 	Timeout       int64                  `json:"timeout,omitempty"`                                        // 超时设置，单位：秒
 	Namespaces    []string               `json:"namespaces,omitempty"`                                     // Action 输出的命名空间
 	Resources     Resources              `json:"resources,omitempty"`                                      // 资源
@@ -102,8 +105,53 @@ type PipelineYmlAction struct {
 	Caches        []ActionCache          `json:"caches,omitempty"`                                         // 缓存
 	SnippetConfig *SnippetConfig         `json:"snippet_config,omitempty" yaml:"snippet_config,omitempty"` // snippet 的配置
 	If            string                 `json:"if,omitempty"`                                             // 条件执行
+	Disable       bool                   `json:"disable,omitempty"`                                        // task is disable or enable
 	Loop          *PipelineTaskLoop      `json:"loop,omitempty"`                                           // 循环执行
 	SnippetStages *SnippetStages         `json:"snippetStages,omitempty"`                                  // snippetStages snippet 展开
+	Policy        *Policy                `json:"policy,omitempty"`                                         // action execution strategy
+}
+
+type PolicyType string
+
+// todo add other types of implementation
+// try-latest-result (if not exist -> new-run)
+// force-latest-result (throw error or wait?)
+//
+// try-latest-success-result
+// force-latest-success-result
+//
+// new-run (default, can omit)
+//
+// run-once-from-root-pipeline
+const (
+	NewRunPolicyType                 PolicyType = "new-run"
+	TryLatestSuccessResultPolicyType PolicyType = "try-latest-success-result"
+	TryLatestResultPolicyType        PolicyType = "try-latest-result"
+)
+
+func (p PolicyType) GetZhName() string {
+	switch p {
+	case NewRunPolicyType:
+		return "重新执行并引用执行结果"
+	case TryLatestSuccessResultPolicyType:
+		return "最近一次执行成功的结果"
+	case TryLatestResultPolicyType:
+		return "最近一次执行的结果"
+	default:
+		return ""
+	}
+}
+
+func (p PolicyType) ToString() string {
+	return string(p)
+}
+
+func (p PolicyType) IsValid() bool {
+	return p == "" || p == NewRunPolicyType || p == TryLatestSuccessResultPolicyType || p == TryLatestResultPolicyType
+}
+
+type Policy struct {
+	Type PolicyType `json:"type,omitempty"`
 }
 
 type SnippetStages struct {

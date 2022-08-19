@@ -15,44 +15,73 @@
 package main
 
 import (
+	_ "embed"
+	"fmt"
+	"runtime"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
-	"github.com/erda-project/erda/conf"
-	"github.com/erda-project/erda/modules/extensions/loghub"
+
+	"github.com/erda-project/erda/internal/tools/monitor/extensions/loghub"
 	"github.com/erda-project/erda/pkg/common"
 
 	// modules
-	_ "github.com/erda-project/erda/modules/core/monitor/alert/alert-apis"
-	_ "github.com/erda-project/erda/modules/core/monitor/alert/details-apis"
-	_ "github.com/erda-project/erda/modules/core/monitor/dataview"
-	_ "github.com/erda-project/erda/modules/core/monitor/dataview/v1-chart-block"
-	_ "github.com/erda-project/erda/modules/core/monitor/log/query"
-	_ "github.com/erda-project/erda/modules/core/monitor/metric/index"
-	_ "github.com/erda-project/erda/modules/core/monitor/metric/query"
-	_ "github.com/erda-project/erda/modules/core/monitor/metric/query-example"
-	_ "github.com/erda-project/erda/modules/core/monitor/metric/query/metricq"
-	_ "github.com/erda-project/erda/modules/core/monitor/settings"
-	_ "github.com/erda-project/erda/modules/extensions/loghub/index/query"
-	_ "github.com/erda-project/erda/modules/extensions/loghub/metrics/rules"
-	_ "github.com/erda-project/erda/modules/monitor/apm/report"
-	_ "github.com/erda-project/erda/modules/monitor/apm/runtime"
-	_ "github.com/erda-project/erda/modules/monitor/apm/topology"
-	_ "github.com/erda-project/erda/modules/monitor/dashboard/node-topo"
-	_ "github.com/erda-project/erda/modules/monitor/dashboard/org-apis"
-	_ "github.com/erda-project/erda/modules/monitor/dashboard/project-apis"
-	_ "github.com/erda-project/erda/modules/monitor/dashboard/report/apis"
-	_ "github.com/erda-project/erda/modules/monitor/dashboard/runtime-apis"
-	_ "github.com/erda-project/erda/modules/monitor/dashboard/template"
-	_ "github.com/erda-project/erda/modules/monitor/monitoring"
-	_ "github.com/erda-project/erda/modules/monitor/notify/template/query"
+	_ "github.com/erda-project/erda-proto-go/core/clustermanager/cluster/client"
+	_ "github.com/erda-project/erda-proto-go/core/messenger/notifychannel/client"
+	_ "github.com/erda-project/erda-proto-go/core/messenger/notifygroup/client"
+	_ "github.com/erda-project/erda-proto-go/core/org/client"
+	_ "github.com/erda-project/erda-proto-go/core/pipeline/cron/client"
+	_ "github.com/erda-project/erda/internal/tools/monitor/apm/runtime"
+	_ "github.com/erda-project/erda/internal/tools/monitor/apm/topology"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/alert/alert-apis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/alert/details-apis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/alert/jobs/unrecover-alerts"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/dataview"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/dataview/v1-chart-block"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/diagnotor/controller"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/entity/query"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/entity/storage"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/entity/storage/elasticsearch"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/event/query"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/event/storage/elasticsearch"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/expression"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/log/query"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/log/storage/cassandra"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/log/storage/clickhouse"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/log/storage/elasticsearch"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/log/storage/kubernetes-logs"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/metric/query"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/metric/query-example"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/metric/query/metricq"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/metric/storage/clickhouse"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/metric/storage/elasticsearch"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/settings"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/settings/retention-strategy"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/storekit/clickhouse/table/loader"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/storekit/elasticsearch/index/cleaner"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/storekit/elasticsearch/index/loader"
+	_ "github.com/erda-project/erda/internal/tools/monitor/core/storekit/elasticsearch/index/retention-strategy"
+	_ "github.com/erda-project/erda/internal/tools/monitor/dashboard/org-apis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/dashboard/project-apis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/dashboard/report/apis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/dashboard/report/apis/v1"
+	_ "github.com/erda-project/erda/internal/tools/monitor/dashboard/runtime-apis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/dashboard/template"
+	_ "github.com/erda-project/erda/internal/tools/monitor/monitoring"
+	_ "github.com/erda-project/erda/internal/tools/monitor/notify/template/query"
+	_ "github.com/erda-project/erda/pkg/common/permission"
+	_ "github.com/erda-project/erda/pkg/k8s-client-manager"
 
 	// providers
 	_ "github.com/erda-project/erda-infra/providers"
 )
 
+//go:embed bootstrap.yaml
+var bootstrapCfg string
+
 func main() {
+	fmt.Println(runtime.Caller(0))
 	common.RegisterInitializer(loghub.Init)
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: conf.MonitorConfigFilePath,
-		Content:    conf.MonitorDefaultConfig,
+		Content: bootstrapCfg,
 	})
 }

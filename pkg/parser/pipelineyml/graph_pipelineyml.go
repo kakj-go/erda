@@ -50,7 +50,9 @@ func ConvertGraphPipelineYmlContent(data []byte) ([]byte, error) {
 					Params:      frontendAction.Params,
 					Image:       frontendAction.Image,
 					Commands:    frontendAction.Commands,
+					Shell:       frontendAction.Shell,
 					Timeout:     frontendAction.Timeout,
+					Disable:     frontendAction.Disable,
 					If:          frontendAction.If,
 					Loop:        frontendAction.Loop,
 					Type:        ActionType(frontendAction.Type),
@@ -75,6 +77,12 @@ func ConvertGraphPipelineYmlContent(data []byte) ([]byte, error) {
 					Key:  cache.Key,
 					Path: cache.Path,
 				})
+			}
+
+			if frontendAction.Policy != nil {
+				maps[ActionType(frontendAction.Type)].Policy = &Policy{
+					Type: frontendAction.Policy.Type,
+				}
 			}
 
 			actions = append(actions, maps)
@@ -183,6 +191,16 @@ func ConvertToGraphPipelineYml(data []byte) (*apistructs.PipelineYml, error) {
 		Outputs:     pipelineOutputs,
 		On:          on,
 		Triggers:    pipelineYml.Spec().Triggers,
+		CronCompensator: func() *apistructs.CronCompensator {
+			if pipelineYml.Spec().CronCompensator == nil {
+				return nil
+			}
+			return &apistructs.CronCompensator{
+				Enable:               pipelineYml.Spec().CronCompensator.Enable,
+				LatestFirst:          pipelineYml.Spec().CronCompensator.LatestFirst,
+				StopIfLatterExecuted: pipelineYml.Spec().CronCompensator.StopIfLatterExecuted,
+			}
+		}(),
 	}
 
 	var lifecycle []*apistructs.NetworkHookInfo
@@ -216,10 +234,12 @@ func ConvertToGraphPipelineYml(data []byte) (*apistructs.PipelineYml, error) {
 				resultAction.Version = action.Version
 				resultAction.Params = action.Params
 				resultAction.Image = action.Image
+				resultAction.Shell = action.Shell
 				resultAction.Commands = action.Commands
 				resultAction.Timeout = action.Timeout
 				resultAction.Namespaces = action.Namespaces
 				resultAction.If = action.If
+				resultAction.Disable = action.Disable
 				resultAction.Loop = action.Loop
 				resultAction.Resources = apistructs.Resources{Cpu: action.Resources.CPU, Mem: float64(action.Resources.Mem), Disk: float64(action.Resources.Disk)}
 
@@ -237,6 +257,12 @@ func ConvertToGraphPipelineYml(data []byte) (*apistructs.PipelineYml, error) {
 
 				if action.SnippetConfig != nil {
 					resultAction.SnippetConfig = action.SnippetConfig.toApiSnippetConfig()
+				}
+
+				if action.Policy != nil {
+					resultAction.Policy = &apistructs.Policy{
+						Type: action.Policy.Type,
+					}
 				}
 
 				stageActions = append(stageActions, resultAction)

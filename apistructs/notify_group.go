@@ -35,6 +35,15 @@ const (
 	WebhookNotifyTarget            NotifyTargetType = "webhook"
 )
 
+var ValidateNotifyChannel = map[string]bool{
+	"dingding": true,
+	"sms":      true,
+	"email":    true,
+	"mbox":     true,
+	"webhook":  true,
+	"vms":      true,
+}
+
 // NotifyTarget 通知目标
 type NotifyTarget struct {
 	Type   NotifyTargetType `json:"type"`
@@ -173,7 +182,7 @@ type QueryNotifyGroupRequest struct {
 	Label       string `query:"label"`
 	ClusterName string `query:"clusterName"`
 	// 通知组名字
-	Names []string `query:"names"`
+	Name string `query:"name"`
 }
 
 // QueryNotifyGroupResponse 查询通知组列表响应

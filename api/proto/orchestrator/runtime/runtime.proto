@@ -6,6 +6,7 @@ import "google/protobuf/struct.proto";
 import "google/protobuf/any.proto";
 import "google/protobuf/timestamp.proto";
 import "common/http.proto";
+import "common/status.proto";
 
 option go_package = "github.com/erda-project/erda-proto-go/orchestrator/runtime/pb";
 
@@ -33,6 +34,9 @@ message Service {
   repeated string addrs = 5;
   repeated string expose = 6;
   repeated ErrorResponse errors = 7;
+  string type = 8;
+  string hpaEnabled = 9 [json_name ="hpaEnabled"];
+  string vpaEnabled = 10 [json_name ="vpaEnabled"];
 }
 
 message StatusMap {
@@ -68,12 +72,13 @@ message RuntimeInspect {
   Resources resources = 13;
   Extra extra = 14;
   uint64 projectID = 15 [json_name = "projectId"] ;
-  map<string, Service> services = 16;
-  map<string, StatusMap> lastMessage = 17;
-  google.protobuf.Timestamp timeCreated = 18;
-  google.protobuf.Timestamp createdAt = 19;
-  google.protobuf.Timestamp updatedAt = 20;
-  repeated ErrorResponse errors = 21;
+  string applicationName = 16 [json_name = "applicationName"];
+  map<string, Service> services = 17;
+  map<string, StatusMap> lastMessage = 18;
+  google.protobuf.Timestamp timeCreated = 19;
+  google.protobuf.Timestamp createdAt = 20;
+  google.protobuf.Timestamp updatedAt = 21;
+  repeated ErrorResponse errors = 22;
 }
 
 message DelRuntimeRequest {
@@ -96,12 +101,23 @@ message Runtime {
   repeated ErrorResponse errors = 13;
 }
 
+message CheckRuntimeExistReq {
+  uint64 id = 1;
+}
+
+message CheckRuntimeExistResp {
+  bool ok = 1;
+}
+
 service RuntimeService {
   rpc GetRuntime (GetRuntimeRequest) returns (RuntimeInspect) {
     option (google.api.http) = {
       get: "/api/runtimes/{nameOrID}?applicationId={appID}&workspace={workspace}",
     };
   }
+
+  rpc CheckRuntimeExist (CheckRuntimeExistReq) returns (CheckRuntimeExistResp) {}
+
   rpc DelRuntime (DelRuntimeRequest) returns (Runtime) {
     option (google.api.http) = {
       delete: "/api/runtimes/{id}",

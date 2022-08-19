@@ -15,13 +15,25 @@
 package apistructs
 
 import (
+	"strconv"
 	"time"
 
 	"github.com/Masterminds/semver"
 	"github.com/sirupsen/logrus"
+
+	"github.com/erda-project/erda/pkg/i18n"
 )
 
 const DicehubExtensionsMenu = "dicehub.extensions.menu"
+
+type SpecType string
+
+const SpecActionType SpecType = "action"
+const SpecAddonType SpecType = "addon"
+
+var (
+	ExtensionSpecDisableECILabel = "eci_disable"
+)
 
 var CategoryTypes = map[string][]string{
 	"action": {
@@ -67,6 +79,52 @@ type Spec struct {
 	SupportedVersions []string          `json:"supportedErdaVersions" yaml:"supportedErdaVersions"`
 	Public            bool              `json:"public" yaml:"public"`
 	IsDefault         bool              `json:"isDefault" yaml:"isDefault"`
+
+	Locale map[string]map[string]string `json:"locale" yaml:"locale"`
+}
+
+const specDisplayName = "displayName"
+const specDesc = "desc"
+
+func (spec *Spec) GetLocaleDisplayName(lang string) string {
+	if lang == "" {
+		lang = i18n.ZH
+	}
+	if spec.Locale == nil || spec.Locale[lang] == nil {
+		return spec.DisplayName
+	}
+	if spec.Locale[lang][specDisplayName] == "" {
+		return spec.DisplayName
+	}
+	return spec.Locale[lang][specDisplayName]
+}
+
+func (spec *Spec) GetLocaleDesc(lang string) string {
+	if lang == "" {
+		lang = i18n.ZH
+	}
+	if spec.Locale == nil || spec.Locale[lang] == nil {
+		return spec.Desc
+	}
+	if spec.Locale[lang][specDesc] == "" {
+		return spec.Desc
+	}
+
+	return spec.Locale[lang][specDesc]
+}
+
+func (spec *Spec) IsDisableECI() bool {
+	if spec.Labels == nil {
+		return false
+	}
+	if disableECIStr, ok := spec.Labels[ExtensionSpecDisableECILabel]; ok {
+		disable, err := strconv.ParseBool(disableECIStr)
+		if err != nil {
+			return false
+		}
+		return disable
+	}
+	return false
 }
 
 // CheckDiceVersion 检查版本是否支持
@@ -150,7 +208,7 @@ type ExtensionVersionCreateResponse struct {
 // ExtensionQueryRequest 查询extension请求
 type ExtensionQueryRequest struct {
 	//默认false查询公开的扩展, true查询所有扩展
-	All string `query:"all"`
+	All bool `query:"all"`
 	// 可选值: action、addon
 	Type string `query:"type"`
 	// 根据标签查询 key:value 查询满足条件的 ^key:value 查询不满足条件的
@@ -173,9 +231,10 @@ type ExtensionVersionGetRequest struct {
 // ExtensionVersionQueryRequest 查询extension版本
 type ExtensionVersionQueryRequest struct {
 	Name       string
-	YamlFormat bool
+	YamlFormat bool `query:"yamlFormat"`
 	//默认false查询有效版本, true查询所有版本
-	All string `query:"all"`
+	All                bool `query:"all"`
+	OrderByVersionDesc bool `query:"orderByVersionDesc"`
 }
 
 // ExtensionVersionGetResponse Extension详情API返回数据结构
@@ -244,15 +303,25 @@ func (v *ExtensionVersion) NotExist() bool {
 
 type ActionSpec struct {
 	Spec              `yaml:",inline"`
-	Concurrency       *ActionConcurrency    `json:"concurrency" yaml:"concurrency"`
-	Params            []ActionSpecParam     `json:"params" yaml:"params"`
-	FormProps         []FormPropItem        `json:"formProps" yaml:"formProps"`
-	AccessibleAPIs    []AccessibleAPI       `json:"accessibleAPIs" yaml:"accessibleAPIs"`
-	Outputs           []ActionSpecOutput    `json:"outputs" yaml:"outputs"`
-	OutputsFromParams []OutputsFromParams   `json:"outputsFromParams" yaml:"outputsFromParams"`
-	Loop              *PipelineTaskLoop     `json:"loop" yaml:"loop"`
-	Priority          *PipelineTaskPriority `json:"priority" yaml:"priority"`
-	Executor          *ActionExecutor       `json:"executor" yaml:"executor"`
+	Concurrency       *ActionConcurrency  `json:"concurrency" yaml:"concurrency"`
+	Params            []ActionSpecParam   `json:"params" yaml:"params"`
+	FormProps         []FormPropItem      `json:"formProps" yaml:"formProps"`
+	AccessibleAPIs    []AccessibleAPI     `json:"accessibleAPIs" yaml:"accessibleAPIs"`
+	Outputs           []ActionSpecOutput  `json:"outputs" yaml:"outputs"`
+	OutputsFromParams []OutputsFromParams `json:"outputsFromParams" yaml:"outputsFromParams"`
+	Loop              *PipelineTaskLoop   `json:"loop" yaml:"loop"`
+	Executor          *ActionExecutor     `json:"executor" yaml:"executor"`
+}
+
+func (s *ActionSpec) ConvertToDetail() PipelineTaskActionDetail {
+	return PipelineTaskActionDetail{
+		Name:        s.Name,
+		Version:     s.Version,
+		Type:        s.Type,
+		LogoUrl:     s.LogoUrl,
+		DisplayName: s.GetLocaleDisplayName(i18n.GetGoroutineBindLang()),
+		Description: s.GetLocaleDesc(i18n.GetGoroutineBindLang()),
+	}
 }
 
 type ActionExecutor struct {

@@ -154,7 +154,13 @@ type OrgClusterInfoBasicData struct {
 type OfflineEdgeClusterRequest struct {
 	OrgID       uint64 `json:"orgID"`
 	ClusterName string `json:"clusterName"`
+	PreCheck    bool   `json:"preCheck"`
 	Force       bool   `json:"force"`
+}
+
+type BatchOfflineEdgeClusterRequest struct {
+	Clusters []string `json:"clusters"`
+	Force    bool     `json:"force"`
 }
 
 type OfflineEdgeClusterResponse struct {
@@ -162,7 +168,8 @@ type OfflineEdgeClusterResponse struct {
 	Data OfflineEdgeClusterData `json:"data"`
 }
 type OfflineEdgeClusterData struct {
-	RecordID uint64 `json:"recordID"`
+	RecordID     uint64 `json:"recordID"`
+	PreCheckHint string `json:"preCheckHint"`
 }
 
 type OpsClusterInfoRequest struct {
@@ -1037,6 +1044,11 @@ type Identity struct {
 	OrgID  string
 }
 
+type PageRequest struct {
+	PageSize uint64 `json:"pageSize"`
+	PageNo   uint64 `json:"pageNo"`
+}
+
 type CloudResourceVpcBaseInfo struct {
 	Region    string `json:"region"`
 	VpcID     string `json:"vpcID"`
@@ -1613,6 +1625,34 @@ type ClusterInitRetry struct {
 }
 
 type InitClusterResponse struct {
+	Header
+	Data string `json:"data"`
+}
+
+type ClusterAk struct {
+	Id        string `json:"id"`
+	AccessKey string `json:"accessKey"`
+}
+
+type ClusterGetAkResponse struct {
+	Header
+	Data *ClusterAk `json:"data"`
+}
+
+type ClusterCreateAkRequest struct {
+	ClusterName string `json:"clusterName"`
+}
+
+type ClusterCreateAkResponse struct {
+	Header
+	Data string `json:"data"`
+}
+
+type ClusterResetAkRequest struct {
+	ClusterName string `json:"clusterName"`
+}
+
+type ClusterResetAkResponse struct {
 	Header
 	Data string `json:"data"`
 }

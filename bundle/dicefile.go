@@ -22,15 +22,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/erda-project/erda/apistructs"
+	commonpb "github.com/erda-project/erda-proto-go/common/pb"
+	"github.com/erda-project/erda-proto-go/core/file/pb"
 	"github.com/erda-project/erda/bundle/apierrors"
+	"github.com/erda-project/erda/internal/core/file/filetypes"
 	"github.com/erda-project/erda/pkg/http/httpclient"
 	"github.com/erda-project/erda/pkg/http/httputil"
 )
 
 // DownloadDiceFile 根据 uuid 返回文件流
 func (b *Bundle) DownloadDiceFile(uuid string) (io.ReadCloser, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +47,9 @@ func (b *Bundle) DownloadDiceFile(uuid string) (io.ReadCloser, error) {
 	}
 	if !resp.IsOK() {
 		bodyBytes, _ := ioutil.ReadAll(respBody)
-		var downloadResp apistructs.FileDownloadFailResponse
+		var downloadResp commonpb.ResponseHeader
 		if err := json.Unmarshal(bodyBytes, &downloadResp); err == nil {
-			return nil, toAPIError(resp.StatusCode(), downloadResp.Error)
+			return nil, toPbAPIError(resp.StatusCode(), downloadResp.Error)
 		}
 		return nil, fmt.Errorf("failed to download dice file, uuid: %s, responseBody: %s", uuid, string(bodyBytes))
 	}
@@ -56,7 +58,7 @@ func (b *Bundle) DownloadDiceFile(uuid string) (io.ReadCloser, error) {
 
 // DeleteDiceFile 根据 uuid 删除文件
 func (b *Bundle) DeleteDiceFile(uuid string) error {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return err
 	}
@@ -70,9 +72,9 @@ func (b *Bundle) DeleteDiceFile(uuid string) error {
 	}
 	if !resp.IsOK() {
 		bodyBytes, _ := ioutil.ReadAll(respBody)
-		var downloadResp apistructs.FileDownloadFailResponse
+		var downloadResp commonpb.ResponseHeader
 		if err := json.Unmarshal(bodyBytes, &downloadResp); err == nil {
-			return toAPIError(resp.StatusCode(), downloadResp.Error)
+			return toPbAPIError(resp.StatusCode(), downloadResp.Error)
 		}
 		return fmt.Errorf("failed to download dice file, uuid: %s, responseBody: %s", uuid, string(bodyBytes))
 	}
@@ -80,8 +82,8 @@ func (b *Bundle) DeleteDiceFile(uuid string) error {
 }
 
 // UploadFile 上传文件
-func (b *Bundle) UploadFile(req apistructs.FileUploadRequest, clientTimeout ...int64) (*apistructs.File, error) {
-	host, err := b.urls.CoreServices()
+func (b *Bundle) UploadFile(req filetypes.FileUploadRequest, clientTimeout ...int64) (*pb.File, error) {
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +108,7 @@ func (b *Bundle) UploadFile(req apistructs.FileUploadRequest, clientTimeout ...i
 	if req.ExpiredAt != nil {
 		request = request.Param("expiredIn", req.ExpiredAt.Sub(time.Now()).String())
 	}
-	var resp apistructs.FileUploadResponse
+	var resp pb.FileUploadResponse
 	httpResp, err := request.Do().JSON(&resp)
 	if err != nil {
 		return nil, err

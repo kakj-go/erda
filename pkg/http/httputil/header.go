@@ -16,11 +16,13 @@ package httputil
 
 // dice 公共 Header
 const (
-	UserHeader           = "User-ID"
-	OrgHeader            = "Org-ID"
-	InternalHeader       = "Internal-Client"        // 内部服务间调用时使用
-	InternalActionHeader = "Internal-Action-Client" // action calls the api header
-	RequestIDHeader      = "RequestID"
+	UserHeader                 = "User-ID"
+	OrgHeader                  = "Org-ID"
+	InternalHeader             = "Internal-Client"        // 内部服务间调用时使用
+	InternalActionHeader       = "Internal-Action-Client" // action calls the api header
+	RequestIDHeader            = "RequestID"
+	UserInfoDesensitizedHeader = "Openapi-Userinfo-Desensitized"
+	LangHeader                 = "lang"
 
 	ClientIDHeader   = "Client-ID"
 	ClientNameHeader = "Client-Name"

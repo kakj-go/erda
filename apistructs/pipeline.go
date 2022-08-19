@@ -15,6 +15,7 @@
 package apistructs
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"strconv"
 	"strings"
@@ -22,15 +23,43 @@ import (
 
 	"github.com/pkg/errors"
 
+	queuepb "github.com/erda-project/erda-proto-go/core/pipeline/queue/pb"
+	"github.com/erda-project/erda-proto-go/dop/projectpipeline/pb"
 	"github.com/erda-project/erda/pkg/strutil"
 )
 
 const (
-	DefaultPipelineYmlName = "pipeline.yml"
+	DefaultPipelineYmlName        = "pipeline.yml"
+	DefaultPipelinePath    string = ""
+	DicePipelinePath       string = ".dice/pipelines"
+	ErdaPipelinePath       string = ".erda/pipelines"
+	YmlSuffix              string = ".yml"
+	YamlSuffix             string = ".yaml"
 
 	//用作PipelinePageListRequest order by 的表字段名称
 	PipelinePageListRequestIdColumn = "id"
 )
+
+const (
+	BuildkitSecretMountName = "cert"
+	BuildkitSecretMountPath = "/.buildkit"
+	BuildkitClientSecret    = "buildkit-client-certs"
+
+	BuildkitEnable  = "BUILDKIT_ENABLE" // will force true when ECIEnable is true
+	BuildkitHitRate = "BUILDKIT_HIT_RATE"
+)
+
+const (
+	EnvDiceOrgName      = "DICE_ORG_NAME"
+	EnvDiceOrgID        = "DICE_ORG_ID"
+	EnvDiceWorkspace    = "DICE_WORKSPACE"
+	EnvIsEdgePipeline   = "IS_EDGE_PIPELINE"
+	EnvPipelineAddr     = "PIPELINE_ADDR"
+	EnvEdgePipelineAddr = "PIPELINE_ADDR"
+)
+
+// pipeline reconcileTask context key
+const ClusterNameContextKey = "cluster_name"
 
 // pipeline create
 
@@ -151,7 +180,20 @@ type PipelineCreateRequestV2 struct {
 	// Internal-Use below
 
 	// BindQueue represents the queue pipeline binds, internal use only, parsed from Labels: LabelBindPipelineQueueID
-	BindQueue *PipelineQueue `json:"-"`
+	BindQueue *queuepb.Queue `json:"-"`
+
+	// DefinitionID pipeline definition id
+	// +optional
+	DefinitionID string `json:"definitionID"`
+
+	// passed from the invoker, different from config cms
+	// eg: gittar.repo
+	// +optional
+	Secrets map[string]string `json:"secrets"`
+
+	// OwnerUser pipeline owner user
+	// +optional
+	OwnerUser *PipelineUser `json:"ownerUser,omitempty"`
 
 	IdentityInfo
 }
@@ -319,7 +361,8 @@ type PipelinePageListRequest struct {
 	// 直接构造对象 请赋值该字段
 	AnyMatchLabels map[string][]string `schema:"-"`
 
-	PageNum       int  `schema:"pageNum"`
+	PageNum       int  `schema:"pageNum"` // still use this field to handle page number
+	PageNo        int  `schema:"pageNo"`  // UI standard compatible, same with PageNum (transfer to pageNum)
 	PageSize      int  `schema:"pageSize"`
 	LargePageSize bool `schema:"largePageSize"` // 允许 pageSize 超过默认值(100)，由内部调用方保证数据量大小
 
@@ -327,8 +370,49 @@ type PipelinePageListRequest struct {
 
 	// internal use
 	SelectCols []string `schema:"-" ` // 需要赋值的字段列表，若不声明，则全赋值
-	AscCols    []string `schema:"-"`
-	DescCols   []string `schema:"-"`
+	AscCols    []string `schema:"ascCol"`
+	DescCols   []string `schema:"descCol"`
+	StartIDGt  uint64   `schema:"-"` // query pipelines with a greater than current ID
+	EndIDLt    uint64   `schema:"-"` // query pipelines with a less than current ID
+
+	// pipeline definition search
+	PipelineDefinitionRequest           *PipelineDefinitionRequest
+	PipelineDefinitionRequestJSONBase64 string `schema:"pipelineDefinition"`
+}
+
+type PipelineDefinitionRequest struct {
+	Name          string   `json:"name"`
+	Creators      []string `json:"creators"`
+	SourceRemotes []string `json:"sourceRemotes"`
+	Location      string   `json:"location"`
+	DefinitionID  string   `json:"definitionID"`
+}
+
+func (definition *PipelineDefinitionRequest) IsEmptyValue() bool {
+	if definition == nil {
+		return true
+	}
+	if len(definition.Name) > 0 {
+		return false
+	}
+	if len(definition.Creators) > 0 {
+		return false
+	}
+	if len(definition.SourceRemotes) > 0 {
+		return false
+	}
+	if definition.Location != "" {
+		return false
+	}
+	return true
+}
+
+type PipelineSourceRequest struct {
+	Remote     string `json:"remote"`
+	Ref        string `json:"ref"`
+	Path       string `json:"path"`
+	Name       string `json:"name"`
+	SourceType string `json:"sourceType"`
 }
 
 func (req *PipelinePageListRequest) PostHandleQueryString() error {
@@ -409,6 +493,18 @@ func (req *PipelinePageListRequest) PostHandleQueryString() error {
 	if req.EndTimeCreatedTimestamp > 0 {
 		req.EndTimeCreated = time.Unix(req.EndTimeCreatedTimestamp, 0)
 	}
+	if req.PipelineDefinitionRequestJSONBase64 != "" {
+		var pipelineDefinitionRequest = PipelineDefinitionRequest{}
+		value, err := base64.StdEncoding.DecodeString(req.PipelineDefinitionRequestJSONBase64)
+		if err != nil {
+			return errors.Errorf("invalid PipelineDefinitionRequestJSONBase64: %s", req.PipelineDefinitionRequestJSONBase64)
+		}
+		err = json.Unmarshal(value, &pipelineDefinitionRequest)
+		if err != nil {
+			return errors.Errorf("invalid PipelineDefinitionRequestJSONBase64: %s", req.PipelineDefinitionRequestJSONBase64)
+		}
+		req.PipelineDefinitionRequest = &pipelineDefinitionRequest
+	}
 
 	return nil
 }
@@ -442,6 +538,8 @@ func (req *PipelinePageListRequest) UrlQueryString() map[string][]string {
 		query["endTimeCreatedTimestamp"] = []string{strconv.FormatInt(req.EndTimeCreatedTimestamp, 10)}
 	}
 	query["selectCol"] = append(query["selectCol"], req.SelectCols...)
+	query["ascCol"] = append(query["ascCol"], req.AscCols...)
+	query["descCol"] = append(query["descCol"], req.DescCols...)
 	query["countOnly"] = []string{strconv.FormatBool(req.CountOnly)}
 	query["mustMatchLabels"] = []string{req.MustMatchLabelsJSON}
 	query["mustMatchLabel"] = req.MustMatchLabelsQueryParams
@@ -451,7 +549,9 @@ func (req *PipelinePageListRequest) UrlQueryString() map[string][]string {
 	query["pageSize"] = []string{strconv.FormatInt(int64(req.PageSize), 10)}
 	query["largePageSize"] = []string{strconv.FormatBool(req.LargePageSize)}
 	query["countOnly"] = []string{strconv.FormatBool(req.CountOnly)}
-
+	if req.PipelineDefinitionRequestJSONBase64 != "" {
+		query["pipelineDefinition"] = []string{req.PipelineDefinitionRequestJSONBase64}
+	}
 	return query
 }
 
@@ -473,6 +573,7 @@ type PipelineRunRequest struct {
 	ForceRun               bool              `json:"forceRun"`
 	PipelineRunParams      PipelineRunParams `json:"runParams"`
 	ConfigManageNamespaces []string          `json:"configManageNamespaces"`
+	Secrets                map[string]string `json:"secrets"`
 	IdentityInfo
 }
 
@@ -492,8 +593,9 @@ type PipelineCancelResponse struct {
 
 // pipeline rerun
 type PipelineRerunRequest struct {
-	PipelineID    uint64 `json:"pipelineID"`
-	AutoRunAtOnce bool   `json:"autoRunAtOnce"`
+	PipelineID    uint64            `json:"pipelineID"`
+	AutoRunAtOnce bool              `json:"autoRunAtOnce"`
+	Secrets       map[string]string `json:"secrets"`
 	IdentityInfo
 }
 
@@ -505,8 +607,9 @@ type PipelineRerunResponse struct {
 // pipeline rerun failed
 
 type PipelineRerunFailedRequest struct {
-	PipelineID    uint64 `json:"pipelineID"`
-	AutoRunAtOnce bool   `json:"autoRunAtOnce"`
+	PipelineID    uint64            `json:"pipelineID"`
+	AutoRunAtOnce bool              `json:"autoRunAtOnce"`
+	Secrets       map[string]string `json:"secrets"`
 	IdentityInfo
 }
 
@@ -520,16 +623,6 @@ type PipelineRerunFailedResponse struct {
 type PipelineCronListResponse struct {
 	Header
 	Data []PipelineCronDTO `json:"data"`
-}
-
-type PipelineCronStartResponse struct {
-	Header
-	Data *PipelineCronDTO `json:"data"`
-}
-
-type PipelineCronStopResponse struct {
-	Header
-	Data *PipelineCronDTO `json:"data"`
 }
 
 // pipeline operate
@@ -612,8 +705,15 @@ type PipelineCallbackResponse struct {
 type PipelineCallbackType string
 
 var (
-	PipelineCallbackTypeOfAction PipelineCallbackType = "ACTION"
+	PipelineCallbackTypeOfAction             PipelineCallbackType = "ACTION"
+	PipelineCallbackTypeOfEdgeTaskReport     PipelineCallbackType = "EDGE_TASK_REPORT"
+	PipelineCallbackTypeOfEdgePipelineReport PipelineCallbackType = "EDGE_PIPELINE_REPORT"
+	PipelineCallbackTypeOfEdgeCronReport     PipelineCallbackType = "EDGE_CRON_REPORT"
 )
+
+func (p PipelineCallbackType) String() string {
+	return string(p)
+}
 
 // pipeline invoked combo 用于流水线侧边栏聚合，每个 combo 是侧边栏一条记录
 // 大数据：combo(branch: master + source: bigdata  + 文件名不限)
@@ -677,7 +777,19 @@ type PipelineDeleteResponse struct {
 	Header
 }
 
-type PipelineCronGetResponse struct {
-	Header
-	Data *PipelineCronDTO `json:"data"`
+type PipelineDefinitionExtraValue struct {
+	CreateRequest *PipelineCreateRequestV2 `json:"createRequest"`
+	RunParams     []*pb.PipelineRunParam   `json:"runParams"`
+}
+
+type EdgeReportStatus string
+
+const (
+	InitEdgeReportStatus       EdgeReportStatus = "init"
+	ProcessingEdgeReportStatus EdgeReportStatus = "processing"
+	DoneEdgeReportStatus       EdgeReportStatus = "done"
+)
+
+func (e EdgeReportStatus) String() string {
+	return string(e)
 }

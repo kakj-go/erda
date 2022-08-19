@@ -45,7 +45,8 @@ services:
     traffic_security:
       mode: https
     endpoints:
-    - domain: dubbo-test.*
+    - domain: ${platform.DICE_PROJECT_NAME}${platform.DICE_PROJECT_NAME}.*
+    - domain: erda-${platform.DICE_PROJECT_NAME}.*
     - domain: dubbo-cc.dev.terminus.io
       path: /123
       policies:
@@ -82,6 +83,6 @@ func TestBasicValidate(t *testing.T) {
 	d, err := New([]byte(basic_validate_yml), false)
 	assert.Nil(t, err)
 	es := BasicValidate(d.Obj())
-	assert.Equal(t, 3, len(es), "%v", es)
+	assert.Equal(t, 6, len(es), "%v", es)
 
 }

@@ -16,6 +16,7 @@ package snapshot_test
 
 import (
 	"bytes"
+	"os"
 	"strings"
 	"testing"
 
@@ -45,7 +46,38 @@ CREATE TABLE ci_v3_build_caches (
   PRIMARY KEY (id)
 ) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb3 COMMENT='buildpack action 使用的构建缓存';
 `
+	sqlWithUtf8 = `
+CREATE TABLE ci_v3_build_caches (
+  id bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  name varchar(200) DEFAULT NULL COMMENT '缓存名',
+  cluster_name varchar(200) DEFAULT NULL COMMENT '集群名',
+  last_pull_at datetime DEFAULT NULL COMMENT '缓存最近一次被拉取的时间',
+  created_at datetime DEFAULT NULL COMMENT '创建时间',
+  updated_at datetime DEFAULT NULL COMMENT '更新时间',
+  deleted_at datetime DEFAULT NULL COMMENT '删除时间',
+  PRIMARY KEY (id)
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET utf8 COMMENT='buildpack action 使用的构建缓存';
+`
+
+	sqlWithUtf8mb4 = `
+CREATE TABLE ci_v3_build_caches (
+  id bigint unsigned NOT NULL AUTO_INCREMENT COMMENT '主键',
+  name varchar(200) DEFAULT NULL COMMENT '缓存名',
+  cluster_name varchar(200) DEFAULT NULL COMMENT '集群名',
+  last_pull_at datetime DEFAULT NULL COMMENT '缓存最近一次被拉取的时间',
+  created_at datetime DEFAULT NULL COMMENT '创建时间',
+  updated_at datetime DEFAULT NULL COMMENT '更新时间',
+  deleted_at datetime DEFAULT NULL COMMENT '删除时间',
+  PRIMARY KEY (id)
+) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb4 COMMENT='buildpack action 使用的构建缓存';
+`
 )
+
+const blockFormatCase = `
+CREATE TABLE t1 (
+  id varchar(32) NOT NULL DEFAULT '' COMMENT '唯一id'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 BLOCK_FORMAT=ENCRYPTED COMMENT='Kong Route 配置信息'   
+`
 
 func TestTrimCollate(t *testing.T) {
 	stmt, err := parser.New().ParseOneStmt(sqlWithCollate, "", "")
@@ -148,7 +180,7 @@ func TestTrimConstraintCheckFromCreateTable(t *testing.T) {
 
 func TestTrimCharacterSetFromRawCreateTableSQL(t *testing.T) {
 	for _, sql := range []string{sqlWithUtf32_1, sqlWithUtf32_2, sqlWithUtf8mb3} {
-		sql := snapshot.TrimCharacterSetFromRawCreateTableSQL(sql)
+		sql := snapshot.TrimCharacterSetFromRawCreateTableSQL(sql, "utf8", "utf8mb4")
 		if strings.Contains(strings.ToLower(sql), "utf32") {
 			t.Fatal("failed to trim character from sql")
 		}
@@ -159,6 +191,22 @@ func TestTrimCharacterSetFromRawCreateTableSQL(t *testing.T) {
 	}
 }
 
+func TestTrimCharacterSetFromRawCreateTableSQL2(t *testing.T) {
+	for charset, sql := range map[string]string{
+		"utf8":    sqlWithUtf8,
+		"utf8mb4": sqlWithUtf8mb4,
+	} {
+		sql := snapshot.TrimCharacterSetFromRawCreateTableSQL(sql, "utf8", "utf8mb4")
+		t.Logf("sql: %s", sql)
+		if !strings.Contains(sql, charset) {
+			t.Fatal("failed to trim character from sql")
+		}
+		if _, err := parser.New().ParseOneStmt(sql, "", ""); err != nil {
+			t.Fatalf("failed to parse create table stmt: %v", err)
+		}
+	}
+}
+
 func TestParseCreateTableStmt(t *testing.T) {
 	for i, sql := range []string{sqlWithUtf32_1, sqlWithUtf32_2, sqlWithUtf8mb3} {
 		stmt, err := snapshot.ParseCreateTableStmt(sql)
@@ -166,5 +214,32 @@ func TestParseCreateTableStmt(t *testing.T) {
 			t.Fatalf("failed to ParseCreateTableStmt: [%v]: %s: %v", i, sql, err)
 		}
 		t.Log("raw text:", sql, "\nparsed text:", stmt.Text())
+	}
+}
+
+func TestTrimBlockFormat(t *testing.T) {
+	trimBlockFormat := snapshot.TrimBlockFormat(blockFormatCase)
+	t.Log(trimBlockFormat)
+}
+
+func TestCharsetWhite(t *testing.T) {
+	white := snapshot.CharsetWhite()
+	var m = make(map[string]struct{})
+	for _, v := range white {
+		m[v] = struct{}{}
+	}
+	if _, ok := m["utf8"]; !ok {
+		t.Fatal("utf8 is in default")
+	}
+	if _, ok := m["utf8mb4"]; !ok {
+		t.Fatal("utf8mb4 is in default")
+	}
+
+	if err := os.Setenv("PIPELINE_MIGRATION_CHARSET_WHITE", "utf8mb4"); err != nil {
+		t.Fatal(err)
+	}
+	white = snapshot.CharsetWhite()
+	if len(white) != 1 || white[0] != "utf8mb4" {
+		t.Fatal("utf8mb4 is set", white)
 	}
 }

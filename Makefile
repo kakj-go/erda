@@ -11,6 +11,7 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
+SHELL := /bin/bash
 # project info
 PROJ_PATH := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 BUILD_PATH ?= ${PROJ_PATH}/cmd/${MODULE_PATH}
@@ -22,7 +23,7 @@ ERDA_VERSION ?= $(shell echo $(VERSION)|sed -e 's/\([0-9]\+\.[0-9]\+\).*/\1/g')
 GOARCH ?= $(shell go env GOARCH)
 GOOS ?= $(shell go env GOOS)
 GO_VERSION := $(shell go version)
-GO_SHORT_VERSION := $(shell go version | awk '{print $$3}')
+GO_SHORT_VERSION := $(shell go version | awk '{print $3}')
 BUILD_TIME := $(shell date "+%Y-%m-%d %H:%M:%S")
 COMMIT_ID := $(shell git rev-parse HEAD 2>/dev/null)
 DOCKER_IMAGE ?=
@@ -38,29 +39,6 @@ VERSION_OPS := -ldflags "\
 # GOPRIVATE ?= ""
 GO_BUILD_ENV := PROJ_PATH=${PROJ_PATH} GOPROXY=${GOPROXY} GOPRIVATE=${GOPRIVATE}
 
-.PHONY: build-version clean tidy
-build-all: build-version submodule tidy
-	@set -o errexit; \
-	MODULES=$$(find "./cmd" -maxdepth 10 -type d); \
-	for path in $${MODULES}; \
-	do \
-		HAS_GO_FILE=$$(eval echo $$(bash -c "find "$${path}" -maxdepth 1 -name *.go 2>/dev/null" | wc -l)); \
-		if [ $${HAS_GO_FILE} -gt 0 ]; then \
-			MODULE_PATH=$${path#cmd/}; \
-			echo "gonna build module: $$MODULE_PATH"; \
-			MODULE_PATHS="$${MODULE_PATHS} $${path}"; \
-		fi; \
-	done; \
-	mkdir -p "${PROJ_PATH}/bin" && \
-	${GO_BUILD_ENV} go build ${VERSION_OPS} ${GO_BUILD_OPTIONS} -o "${PROJ_PATH}/bin" $${MODULE_PATHS}; \
-	make cli; \
-	echo "build all modules successfully!"
-
-build: build-version submodule tidy
-	cd "${BUILD_PATH}" && \
-	${GO_BUILD_ENV} go build ${VERSION_OPS} ${GO_BUILD_OPTIONS} -o "${PROJ_PATH}/bin/${APP_NAME}"
-	@ echo "build the ${MODULE_PATH} module successfully!"
-
 build-cross: build-version submodule
 	cd "${BUILD_PATH}" && \
 	CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} ${GO_BUILD_ENV} go build ${VERSION_OPS} ${GO_BUILD_OPTIONS} -o "${PROJ_PATH}/bin/${GOOS}-${GOARCH}-${APP_NAME}"
@@ -71,6 +49,7 @@ build-for-linux:
 build-version:
 	@echo ------------ Start Build Version Details ------------
 	@echo AppName: ${APP_NAME}
+	@echo ModulePath: ${MODULE_PATH}
 	@echo Arch: ${GOARCH}
 	@echo OS: ${GOOS}
 	@echo Version: ${VERSION}
@@ -96,15 +75,6 @@ generate:
 	cd "${BUILD_PATH}" && \
 	${GO_BUILD_ENV} go generate -v -x
 
-prepare:
-ifeq "$(SKIP_PREPARE)" ""
-	cd "${PROJ_PATH}" && \
-	${GO_BUILD_ENV} go generate ./apistructs && \
-	${GO_BUILD_ENV} go generate ./modules/openapi/api/generate && \
-	${GO_BUILD_ENV} go generate ./modules/openapi/component-protocol/generate
-	make prepare-cli
-endif
-
 submodule:
 	git submodule update --init
 
@@ -125,6 +95,9 @@ run-g: build
 # print the compiled providers and help information
 run-ps: build
 	./bin/${APP_NAME} --providers
+
+miglint: cli
+	./bin/erda-cli migrate lint --input=.erda/migrations --lint-config=.erda/migrations/config.yml
 
 # normalize all go files before push to git repo
 normalize:
@@ -156,19 +129,17 @@ run-test:
 	go run tools/gotools/go-test-sum/main.go
 
 full-test:
-	docker run --rm -ti -v $$(pwd):/go/src/output letmein7788/letmein:golangci-lint \
-		bash -c 'cd /go/src && git clone https://github.com/recallsong/erda && cd erda && git checkout feature/quick-test && build/scripts/test_in_container.sh'
+	docker run --rm -ti -v $$(pwd):/go/src/output registry.erda.cloud/erda/erda-base:20220726 \
+		bash -c 'cd /go/src/output && build/scripts/test_in_container.sh'
 
 # docker image
 build-image: prepare
-	./build/scripts/docker_image.sh ${MODULE_PATH} build ${EXTENSION_ZIP_ADDRS}
+	./build/scripts/docker_image.sh ${MODULE_PATH} build
 push-image:
 	./build/scripts/docker_image.sh ${MODULE_PATH} push
-build-push-image: prepare
-	./build/scripts/docker_image.sh ${MODULE_PATH} build-push ${EXTENSION_ZIP_ADDRS}
+build-image-all:
+	MAKE_BUILD_CMD=build-all ./build/scripts/docker_image.sh build
 
-build-push-all:
-	MAKE_BUILD_CMD=build-all ./build/scripts/docker_image.sh / build-push ${EXTENSION_ZIP_ADDRS}
 build-push-base-image:
 	./build/scripts/base_image.sh build-push
 
@@ -191,3 +162,45 @@ upload-cli: cli cli-linux
 	go run tools/upload-cli/main.go ${ACCESS_KEY_ID} ${ACCESS_KEY_SECRET} cli/mac/erda "${PROJ_PATH}/bin/erda-cli"
 	go run tools/upload-cli/main.go ${ACCESS_KEY_ID} ${ACCESS_KEY_SECRET} cli/linux/erda "${PROJ_PATH}/bin/erda-cli-linux"
 
+
+
+.PHONY: setup-cmd-conf
+setup-cmd-conf:
+	find cmd -type f -name "main.go" -exec ./build/scripts/prepare/setup_cmd_conf.sh {} \;
+
+.EXPORT_ALL_VARIABLES:
+	GO_BUILD_ENV = "$(GO_BUILD_ENV)"
+	GO_BUILD_OPTIONS = "$(GO_BUILD_OPTIONS)"
+	VERSION_OPS = "$(VERSION_OPS)"
+	PROJ_PATH = "$(PROJ_PATH)"
+	MODULE_PATH = "$(MODULE_PATH)"
+
+build-all: build-version submodule prepare tidy
+	@set -eo pipefail; \
+	./build/scripts/build_all/build_all.sh; \
+	make cli
+
+build-one: build-version submodule prepare tidy
+	@set -eo pipefail; \
+	./build/scripts/build_all/build_all.sh
+
+build-push-all:
+	MAKE_BUILD_CMD=build-all ./build/scripts/docker_image.sh / build-push
+
+build-push-image:
+	./build/scripts/docker_image.sh ${MODULE_PATH} build-push
+
+prepare:
+ifeq "$(SKIP_PREPARE)" ""
+	cd "${PROJ_PATH}" && \
+	${GO_BUILD_ENV} go generate ./apistructs && \
+	${GO_BUILD_ENV} go generate ./internal/core/openapi/legacy/api/generate && \
+	${GO_BUILD_ENV} go generate ./internal/core/openapi/legacy/component-protocol/generate
+	make prepare-cli
+endif
+
+proto-go-in-ci:
+	cd api/proto-go && make build-use-docker-image
+
+proto-go-in-local:
+	cd api/proto-go && make clean && make build

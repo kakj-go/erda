@@ -32,3 +32,32 @@ func Concat(array []string, arrays ...[]string) []string {
 	}
 	return array
 }
+
+func IsContain(items []string, item string) bool {
+	for _, eachItem := range items {
+		if eachItem == item {
+			return true
+		}
+	}
+	return false
+}
+
+func Paging(pageNo, pageSize, length uint64) (int64, int64) {
+	if pageNo < 1 {
+		pageNo = 1
+	}
+	if pageSize <= 0 {
+		pageSize = 100
+	}
+	if pageSize > length {
+		pageSize = length
+	}
+	from, end := (pageNo-1)*pageSize, pageNo*pageSize
+	if from > length {
+		return -1, -1
+	}
+	if end > length {
+		end = length
+	}
+	return int64(from), int64(end)
+}

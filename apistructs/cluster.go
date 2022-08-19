@@ -50,6 +50,12 @@ const (
 	ManageProxy = "proxy"
 )
 
+// cluster credential
+const (
+	ErdaClusterCredential = "erda-cluster-credential"
+	ClusterAccessKey      = "CLUSTER_ACCESS_KEY"
+)
+
 // ClusterCreateRequest 集群创建请求
 // TODO 逐步废弃 urls & settings, 统一使用config
 type ClusterCreateRequest struct {
@@ -147,7 +153,7 @@ type ClusterSchedConfig struct {
 	ClientKey    string `json:"clientKey"`
 	EnableTag    bool   `json:"enableTag"`
 	// TODO enableWorkspace should be refactor, now pipeline will set default true
-	EnableWorkspace          *bool  `json:"enableWorkspace,omitempty"`
+	EnableWorkspace          bool   `json:"enableWorkspace,omitempty"`
 	EdasConsoleAddr          string `json:"edasConsoleAddr"`
 	AccessKey                string `json:"accessKey"`
 	AccessSecret             string `json:"accessSecret"`
@@ -232,6 +238,8 @@ type ClusterInfo struct {
 	// 是否关联集群，Y: 是，N: 否
 	// Deprecated
 	IsRelation string `json:"isRelation"`
+	// encode of cluster info
+	CM ClusterInfoData `json:"cm"`
 }
 
 // GetClusterResponse 根据集群名称或集群ID获取集群信息

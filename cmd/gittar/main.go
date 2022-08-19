@@ -15,15 +15,24 @@
 package main
 
 import (
+	_ "embed"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
 	"github.com/erda-project/erda/pkg/common"
 
 	// providers and modules
-	_ "github.com/erda-project/erda/modules/gittar"
+	_ "github.com/erda-project/erda-infra/providers/grpcclient"
+	_ "github.com/erda-project/erda-proto-go/core/org/client"
+	_ "github.com/erda-project/erda-proto-go/core/token/client"
+	_ "github.com/erda-project/erda-proto-go/core/user/client"
+	_ "github.com/erda-project/erda/internal/tools/gittar"
 )
+
+//go:embed bootstrap.yaml
+var bootstrapCfg string
 
 func main() {
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: "conf/gittar/gittar.yaml",
+		Content: bootstrapCfg,
 	})
 }

@@ -31,3 +31,27 @@ func Test_CheckVersion(t *testing.T) {
 	v = spec.CheckDiceVersion("1.1")
 	assert.False(t, v)
 }
+
+func TestIsDisableECI(t *testing.T) {
+	s := &Spec{Labels: map[string]string{"eci_disable": "true"}}
+	assert.Equal(t, true, s.IsDisableECI())
+	nonDisableSpec := &Spec{Labels: map[string]string{"eci_disable": "false"}}
+	assert.Equal(t, false, nonDisableSpec.IsDisableECI())
+}
+
+func TestConvertToDetail(t *testing.T) {
+	s := &ActionSpec{
+		Spec: Spec{
+			Name:        "git-checkout",
+			Version:     "1.0",
+			DisplayName: "git-checkout",
+			Type:        "action",
+			Desc:        "代码仓库克隆",
+		},
+	}
+	actionDetail := s.ConvertToDetail()
+	assert.Equal(t, "git-checkout", actionDetail.Name)
+	assert.Equal(t, "1.0", actionDetail.Version)
+	assert.Equal(t, "git-checkout", actionDetail.DisplayName)
+	assert.Equal(t, "action", actionDetail.Type)
+}

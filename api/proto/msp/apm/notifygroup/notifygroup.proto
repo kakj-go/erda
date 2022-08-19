@@ -88,7 +88,7 @@ message Target {
 }
 
 message CreateNotifyGroupResponse {
-  NotifyGroup data = 1;
+  GroupIdAndProjectId data = 1;
 }
 message NotifyGroup {
   int64                     id        = 1;
@@ -99,20 +99,22 @@ message NotifyGroup {
   google.protobuf.Timestamp createdAt = 6;
   string                    creator   = 7;
   string                    label     = 8;
+  uint64                    projectId = 9;
 }
 
 message QueryNotifyGroupRequest {
-  int64           pageNo      = 1;
-  int64           pageSize    = 2;
-  string          scopeType   = 3;
-  string          scopeId     = 4;
-  string          label       = 5;
-  string          clusterName = 6;
-  repeated string names       = 7;
+  int64  pageNo      = 1;
+  int64  pageSize    = 2;
+  string scopeType   = 3;
+  string scopeId     = 4;
+  string label       = 5;
+  string clusterName = 6;
+  string name        = 7;
 }
 
 message QueryNotifyGroupResponse {
-  QueryNotifyGroupData data = 1;
+  QueryNotifyGroupData data    = 1;
+  repeated string      userIDs = 2;
 }
 
 message QueryNotifyGroupData {
@@ -150,7 +152,7 @@ message UpdateNotifyGroupRequest {
 }
 
 message UpdateNotifyGroupResponse {
-  NotifyGroup data = 1;
+  GroupIdAndProjectId data = 1;
 }
 
 message GetNotifyGroupDetailRequest {
@@ -186,5 +188,10 @@ message DeleteNotifyGroupRequest {
 }
 
 message DeleteNotifyGroupResponse {
-  NotifyGroup data = 1;
+  GroupIdAndProjectId data = 1;
+}
+
+message GroupIdAndProjectId {
+  int64  groupID   = 1;
+  uint64 projectId = 9;
 }

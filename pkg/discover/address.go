@@ -14,14 +14,15 @@
 
 package discover
 
-import "sort"
+import (
+	"sort"
+)
 
 // 定义各个服务地址的环境变量配置名字.
 const (
 	EnvEventBox       = "EVENTBOX_ADDR"
 	EnvCMDB           = "CMDB_ADDR"
 	EnvScheduler      = "SCHEDULER_ADDR"
-	EnvDiceHub        = "DICEHUB_ADDR"
 	EnvSoldier        = "SOLDIER_ADDR"
 	EnvOrchestrator   = "ORCHESTRATOR_ADDR"
 	EnvAddOnPlatform  = "ADDON_PLATFORM_ADDR"
@@ -39,11 +40,12 @@ const (
 	EnvTMC            = "TMC_ADDR" // TODO REMOVE
 	EnvMSP            = "MSP_ADDR"
 	EnvUC             = "UC_ADDR"
-	EnvClusterDialer  = "CLUSTER_DIALER_ADDR"
 	EnvDOP            = "DOP_ADDR"
 	EnvECP            = "ECP_ADDR"
 	EnvClusterManager = "CLUSTER_MANAGER_ADDR"
-	EnvCoreServices   = "CORE_SERVICES_ADDR"
+	EnvClusterDialer  = "CLUSTER_DIALER_ADDR"
+	EnvFDPMaster      = "FDP_MASTER_ADDR"
+	EnvErdaServer     = "ERDA_SERVER_ADDR"
 )
 
 // 定义各个服务的 k8s svc 名称
@@ -51,7 +53,6 @@ const (
 	SvcEventBox       = "eventbox"
 	SvcCMDB           = "cmdb"
 	SvcScheduler      = "scheduler"
-	SvcDiceHub        = "dicehub"
 	SvcSoldier        = "soldier"
 	SvcOrchestrator   = "orchestrator"
 	SvcAddOnPlatform  = "addon-platform"
@@ -69,18 +70,19 @@ const (
 	SvcTMC            = "tmc"
 	SvcMSP            = "msp"
 	SvcUC             = "uc"
-	SvcClusterDialer  = "cluster-dialer"
 	SvcDOP            = "dop"
 	SvcECP            = "ecp"
 	SvcClusterManager = "cluster-manager"
-	SvcCoreServices   = "core-services"
+	SvcClusterDialer  = "cluster-dialer"
+	SvcFDPMaster      = "fdp-master"
+	SvcErdaServer     = "erda-server"
+	SvcAdmin          = "admin"
+	SvcGallery        = "gallery"
 )
 
-var servicesEnvKeys = map[string]string{
-	SvcEventBox:       EnvEventBox,
+var ServicesEnvKeys = map[string]string{
 	SvcCMDB:           EnvCMDB,
 	SvcScheduler:      EnvScheduler,
-	SvcDiceHub:        EnvDiceHub,
 	SvcSoldier:        EnvSoldier,
 	SvcOrchestrator:   EnvOrchestrator,
 	SvcAddOnPlatform:  EnvAddOnPlatform,
@@ -91,23 +93,24 @@ var servicesEnvKeys = map[string]string{
 	SvcPipeline:       EnvPipeline,
 	SvcHepa:           EnvHepa,
 	SvcCMP:            EnvCMP,
-	SvcOpenapi:        EnvOpenapi,
 	SvcKMS:            EnvKMS,
 	SvcQA:             EnvQA,
 	SvcAPIM:           EnvAPIM,
 	SvcTMC:            EnvTMC,
 	SvcMSP:            EnvMSP,
 	SvcUC:             EnvUC,
-	SvcClusterDialer:  EnvClusterDialer,
 	SvcDOP:            EnvDOP,
 	SvcECP:            EnvECP,
 	SvcClusterManager: EnvClusterManager,
-	SvcCoreServices:   EnvCoreServices,
+	SvcClusterDialer:  EnvClusterDialer,
+	SvcFDPMaster:      EnvFDPMaster,
+	SvcErdaServer:     EnvErdaServer,
+	SvcOpenapi:        EnvOpenapi,
 }
 
 func Services() []string {
-	list := make([]string, 0, len(servicesEnvKeys))
-	for key := range servicesEnvKeys {
+	list := make([]string, 0, len(ServicesEnvKeys))
+	for key := range ServicesEnvKeys {
 		list = append(list, key)
 	}
 	sort.Strings(list)
@@ -117,7 +120,6 @@ func Services() []string {
 func EventBox() string       { return getURL(SvcEventBox) }
 func CMDB() string           { return getURL(SvcCMDB) }
 func Scheduler() string      { return getURL(SvcScheduler) }
-func DiceHub() string        { return getURL(SvcDiceHub) }
 func Soldier() string        { return getURL(SvcSoldier) }
 func Orchestrator() string   { return getURL(SvcOrchestrator) }
 func AddOnPlatform() string  { return getURL(SvcAddOnPlatform) }
@@ -135,11 +137,10 @@ func KMS() string            { return getURL(SvcKMS) }
 func QA() string             { return getURL(SvcQA) }
 func APIM() string           { return getURL(SvcAPIM) }
 func UC() string             { return getURL(SvcUC) }
-func ClusterDialer() string  { return getURL(SvcClusterDialer) }
 func DOP() string            { return getURL(SvcDOP) }
-func CoreServices() string   { return getURL(SvcCoreServices) }
-func ECP() string            { return getURL(SvcECP) }
+func ErdaServer() string     { return getURL(SvcErdaServer) }
 func ClusterManager() string { return getURL(SvcClusterManager) }
+func ClusterDialer() string  { return getURL(SvcClusterDialer) }
 
 func getURL(srvName string) string {
 	url, _ := GetEndpoint(srvName)

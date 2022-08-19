@@ -15,11 +15,76 @@
 package diceyml
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+const testyml = `environments:
+  development:
+    addons:
+      mysql:
+        as: MYSQL
+        options:
+          create_dbs: mall_eevee
+          version: 5.7.29
+        plan: mysql:basic
+      oss:
+        options:
+          version: 1.0.0
+        plan: alicloud-oss:basic
+    envs:
+      OSS_ENABLE: true
+envs:
+  CSRF_ENABLE: true
+  ENABLE_SSR: false
+  OSS_ENABLE: true
+  SSR_FALLBACK: true
+  TERMINUS_KEY: ((TERMINUS_KEY))
+  TERMINUS_TA_COLLECTOR_URL: ((TERMINUS_TA_COLLECTOR_URL))
+  TERMINUS_TA_ENABLE: ((TERMINUS_TA_ENABLE))
+  TERMINUS_TA_URL: ((TERMINUS_TA_URL))
+jobs: {}
+services:
+  gaia-mall:
+    depends_on:
+    - herd
+    deployments:
+      replicas: 1
+    expose:
+    - 80
+    health_check:
+      http:
+        duration: 120
+        path: /health/check
+        port: 80
+    image: addon-registry.default.svc.cluster.local:5000/xxx
+    ports:
+    - 80
+    resources:
+      cpu: 0.2
+      disk: 4096
+      mem: 512
+  herd:
+    deployments:
+      replicas: 1
+    health_check:
+      http:
+        duration: 120
+        path: /health/check
+        port: 8081
+    image: addon-registry.default.svc.cluster.local:5000/aaaa
+    ports:
+    - 8081
+    resources:
+      cpu: 0.2
+      disk: 10
+      mem: 512
+version: 2`
+
+const testjson = `{"version":"2.0","meta":{},"services":{"datastore":{"image":"registry.cn-hangzhou.aliyuncs.com/xxxx","image_username":"","image_password":"","cmd":"","ports":[{"port":8080,"protocol":"TCP","l4_protocol":"TCP","expose":true,"default":false}],"envs":{"JAVA_OPTS":"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -server -XX:NewRatio=1 -Xms3072m -Xmx3072m"},"resources":{"cpu":3,"mem":3072,"max_cpu":0,"max_mem":0,"disk":0,"network":{"mode":"container"}},"deployments":{"replicas":1,"policies":""},"expose":[8080],"health_check":{"http":{},"exec":{"cmd":"curl -k http://127.0.0.1:8080/api/data/health"}},"traffic_security":{}},"datastore-search":{"image":"registry.cn-hangzhou.aliyuncs.com/xxxx","image_username":"","image_password":"","cmd":"","ports":[{"port":8080,"protocol":"TCP","l4_protocol":"TCP","expose":true,"default":false}],"envs":{"JAVA_OPTS":"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -server -XX:NewRatio=1 -Xms512m -Xmx512m"},"resources":{"cpu":0.5,"mem":1024,"max_cpu":0,"max_mem":0,"disk":0,"network":{"mode":"container"}},"deployments":{"replicas":1,"policies":""},"expose":[8080],"health_check":{"http":{"port":8080,"path":"/api/web-tool/search-model/health","duration":600},"exec":{}},"traffic_security":{}},"meta-store":{"image":"registry.cn-hangzhou.aliyuncs.com/xxxx","image_username":"","image_password":"","cmd":"","ports":[{"port":8080,"protocol":"TCP","l4_protocol":"TCP","expose":true,"default":false}],"envs":{"JAVA_OPTS":"-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=5005 -server -Xmx3072m -Xms3072m -Xmn1024m -Xss512k -XX:NewRatio=1 -XX:+PrintGCDetails -XX:ParallelGCThreads=4 -XX:+UseConcMarkSweepGC -XX:+PrintGCDateStamps -XX:+PrintTenuringDistribution -XX:+PrintHeapAtGC -XX:+UseContainerSupport"},"resources":{"cpu":4,"mem":4096,"max_cpu":0,"max_mem":0,"disk":0,"network":{"mode":"container"}},"deployments":{"replicas":1,"policies":"","selectors":{"location":{"not":false,"values":["datastore"]}}},"expose":[8080],"health_check":{"http":{"port":8080,"path":"/actuator/health","duration":900},"exec":{}},"traffic_security":{}},"trantor-console":{"image":"registry.cn-hangzhou.aliyuncs.com/xxxx","image_username":"","image_password":"","cmd":"","ports":[{"port":8099,"protocol":"TCP","l4_protocol":"TCP","expose":true,"default":false}],"resources":{"cpu":0.25,"mem":256,"max_cpu":0,"max_mem":0,"disk":0,"network":{"mode":"container"}},"deployments":{"replicas":1,"policies":""},"expose":[8099],"health_check":{"http":{"port":80,"path":"/","duration":120},"exec":{}},"traffic_security":{}}},"addons":{"api-gateway":{"plan":"api-gateway:basic"},"elasticsearch":{"plan":"terminus-elasticsearch:basic","options":{"version":"5.6.9"}},"registercenter":{"plan":"registercenter:basic"},"rocketmq":{"plan":"rocketmq:basic","options":{"version":"4.2.0"}},"trantor-gaia-master":{"plan":"redis:basic","options":{"version":"3.2.12"}},"trantor-gaia-mysql":{"plan":"mysql:basic","options":{"version":"5.7.23"}}}}`
 
 const jobyml = `version: 2.0
 jobs:
@@ -161,10 +226,10 @@ environments:
           version: 5.7.29
         plan: mysql:basic
 envs:
-  ADMIN_ADDR: admin:9095
+  ERDA_SERVER_ADDR: erda-server:9095 
   CMP_ADDR: cmp:9027
   COLLECTOR_ADDR: collector:7076
-  CORE_SERVICES_ADDR: core-services:9526
+  ERDA_SERVER_ADDR: erda-server:9095
   DOP_ADDR: dop:9527
   ETCDCTL_API: "3"
   MONITOR_ADDR: monitor:7096
@@ -229,9 +294,6 @@ services:
       port: 9095
       protocol: TCP
     - l4_protocol: TCP
-      port: 9096
-      protocol: TCP
-    - l4_protocol: TCP
       port: 8096
       protocol: TCP
     resources:
@@ -262,31 +324,6 @@ services:
       mem: ${request_mem:1024}
       network:
         mode: container
-  cluster-dialer:
-    cmd: /app/cluster-dialer
-    deployments:
-      labels:
-        GROUP: dice
-      replicas: 1
-    envs:
-      DEBUG: "false"
-    expose:
-    - 80
-    health_check:
-      exec: {}
-      http: {}
-    image: registry.erda.cloud/erda/erda:1.4.0-alpha-20211008033801-158b666
-    ports:
-    - l4_protocol: TCP
-      port: 80
-      protocol: TCP
-    resources:
-      cpu: ${request_cpu:2}
-      max_cpu: 2
-      max_mem: 2048
-      mem: ${request_mem:2048}
-      network:
-        mode: container
   cluster-manager:
     cmd: /app/cluster-manager
     deployments:
@@ -305,8 +342,8 @@ services:
       protocol: TCP
     resources:
       cpu: ${request_cpu:0.2}
-      max_cpu: 0.2
-      max_mem: 256
+      max_cpu: 2
+      max_mem: 2048
       mem: ${request_mem:256}
       network:
         mode: container
@@ -811,38 +848,6 @@ services:
       mem: ${request_mem:1536}
       network:
         mode: container
-  scheduler:
-    binds:
-    - ${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-ca.pem:/certs/etcd-ca.pem:ro
-    - ${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-client.pem:/certs/etcd-client.pem:ro
-    - ${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-client-key.pem:/certs/etcd-client-key.pem:ro
-    cmd: /app/scheduler
-    deployments:
-      labels:
-        GROUP: dice
-      replicas: ${replicas:1}
-    envs:
-      CMDB_CONTAINER_TOPIC: spot-metaserver_container
-      CMDB_GROUP: spot_cmdb_group2
-      DEBUG: "false"
-    health_check:
-      exec: {}
-      http:
-        duration: 120
-        path: /info
-        port: 9091
-    image: registry.erda.cloud/erda/erda:1.4.0-alpha-20211008033801-158b666
-    ports:
-    - l4_protocol: TCP
-      port: 9091
-      protocol: TCP
-    resources:
-      cpu: ${request_cpu:1}
-      max_cpu: 1
-      max_mem: 2048
-      mem: ${request_mem:2048}
-      network:
-        mode: container
   streaming:
     binds:
     - ${nfs_root:/netdata}/dice-ops/dice-config/certificates/etcd-ca.pem:/certs/etcd-ca.pem:ro
@@ -1043,4 +1048,24 @@ func testNew(t *testing.T, i int, text string) {
 		t.Fatalf("[%v] failed to y.JSON: %v", i, err)
 	}
 	t.Logf("[%v] Json: %s", i, data)
+	var dice Object
+	err = json.Unmarshal([]byte(testjson), &dice)
+	if err != nil {
+		t.Fatalf("json unmarshal failed, err:%+v", err)
+	}
+	dy, err := New([]byte(testyml), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jstr, err := json.MarshalIndent(dy.obj, "", "\t")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = json.Unmarshal(jstr, &dice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dice.Environments["development"].Envs["OSS_ENABLE"] != "true" {
+		t.Fatalf("json unmarshal error, dice:%s", jstr)
+	}
 }

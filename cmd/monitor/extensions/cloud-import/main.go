@@ -15,13 +15,15 @@
 package main
 
 import (
+	_ "embed"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
-	"github.com/erda-project/erda/modules/extensions/loghub"
+	"github.com/erda-project/erda/internal/tools/monitor/extensions/loghub"
 	"github.com/erda-project/erda/pkg/common"
 
-	_ "github.com/erda-project/erda/modules/extensions/cloud/aliyun/metrics/cloudcat"
-	_ "github.com/erda-project/erda/modules/extensions/loghub/metrics/analysis"
-	_ "github.com/erda-project/erda/modules/extensions/loghub/sls-import"
+	_ "github.com/erda-project/erda/internal/apps/msp/apm/log-service/analysis"
+	_ "github.com/erda-project/erda/internal/tools/monitor/extensions/cloud/aliyun/metrics/cloudcat"
+	_ "github.com/erda-project/erda/internal/tools/monitor/extensions/loghub/sls-import"
 
 	// infra
 	_ "github.com/erda-project/erda-infra/providers/health"
@@ -29,9 +31,12 @@ import (
 	_ "github.com/erda-project/erda-infra/providers/pprof"
 )
 
+//go:embed bootstrap.yaml
+var bootstrapCfg string
+
 func main() {
 	common.RegisterInitializer(loghub.Init)
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: "conf/monitor/extensions/cloud-import.yaml",
+		Content: bootstrapCfg,
 	})
 }

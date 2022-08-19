@@ -70,13 +70,17 @@ type RuntimeCreateV2ResponseData struct {
 }
 
 type RuntimeCreateRequest struct {
-	Name           string                    `json:"name"`
-	ReleaseID      string                    `json:"releaseId"`
-	Operator       string                    `json:"operator"`
-	ClusterName    string                    `json:"clusterName"`
-	Source         RuntimeSource             `json:"source"`
-	Extra          RuntimeCreateRequestExtra `json:"extra,omitempty"`
-	SkipPushByOrch bool                      `json:"skipPushByOrch"`
+	Name              string                    `json:"name"`
+	ReleaseID         string                    `json:"releaseId"`
+	Operator          string                    `json:"operator"`
+	ClusterName       string                    `json:"clusterName"`
+	Source            RuntimeSource             `json:"source"`
+	Extra             RuntimeCreateRequestExtra `json:"extra,omitempty"`
+	SkipPushByOrch    bool                      `json:"skipPushByOrch"`
+	Param             string                    `json:"param"`
+	DeploymentOrderId string                    `json:"deploymentOrderId,omitempty"`
+	ReleaseVersion    string                    `json:"releaseVersion,omitempty"`
+	ExtraParams       string                    `json:"extraParams,omitempty"`
 }
 
 type RuntimeKillPodRequest struct {
@@ -111,6 +115,11 @@ type RuntimeCreateRequestExtra struct {
 	ClusterId json.Number `json:"clusterId,omitempty"`
 	// for addon actions
 	AddonActions map[string]interface{} `json:"actions,omitempty"`
+}
+
+type RuntimeReleaseCreateResponse struct {
+	Header
+	Data RuntimeDeployDTO `json:"data"`
 }
 
 type RuntimeCreateResponse struct {

@@ -32,7 +32,7 @@ const (
 	IssueStateBelongDone     IssueStateBelong = "DONE"     // 已完成
 	IssueStateBelongWontfix  IssueStateBelong = "WONTFIX"  // 无需修复
 	IssueStateBelongReopen   IssueStateBelong = "REOPEN"   // 重新打开
-	IssueStateBelongResloved IssueStateBelong = "RESOLVED" // 已解决
+	IssueStateBelongResolved IssueStateBelong = "RESOLVED" // 已解决
 	IssueStateBelongClosed   IssueStateBelong = "CLOSED"   // 已关闭
 )
 
@@ -134,4 +134,27 @@ type IssueStateTypeBelongGetResponse struct {
 type IssueStateNameGetResponse struct {
 	Header
 	Data []IssueStatus `json:"data"`
+}
+
+type IssueStateCustomRelation struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+type StateDefinitionCustomizeData struct {
+	IssueType `json:"issueType"`
+	States    []IssueStateData           `json:"states"`
+	Relations []IssueStateCustomRelation `json:"relations"`
+}
+
+type IssueStateData struct {
+	Index            int64  `json:"index"`
+	Name             string `json:"name"`
+	IssueStateBelong `json:"belong"`
+}
+
+type IssueStatesRequest struct {
+	ProjectID    uint64             `json:"projectID"`
+	IssueType    []IssueType        `json:"issueTypes"`
+	StateBelongs []IssueStateBelong `json:"stateBelongs"`
 }

@@ -6,10 +6,14 @@ set -o errexit -o pipefail
 cd "$(dirname "$0")/../dockerfiles/base";
 
 # setup base image
-DOCKER_IMAGE=golang-base:210416
+DOCKER_IMAGE=golang-base:20220726
 
 if [ -n "${DOCKER_REGISTRY}" ]; then
     DOCKER_IMAGE=${DOCKER_REGISTRY}/${DOCKER_IMAGE}
+fi
+
+if [ -n "${DOCKER_PLATFORM}" ]; then
+    DOCKER_PLATFORM="linux/amd64"
 fi
 
 # check parameters and print usage if need
@@ -32,7 +36,7 @@ fi
 
 # build docker image
 build_image()  {
-    DOCKER_BUILDKIT=1 docker build --progress=plain -t "${DOCKER_IMAGE}" \
+    DOCKER_BUILDKIT=1 docker build --platform "${DOCKER_PLATFORM}" --progress=plain -t "${DOCKER_IMAGE}" \
         --label "build-time=$(date '+%Y-%m-%d %T%z')" \
         --label "alpine=3.12" \
         --label "golang=1.16" \

@@ -26,7 +26,7 @@ import (
 
 // GetNotifyGroupDetail 查询通知组详情
 func (b *Bundle) GetNotifyGroupDetail(id int64, orgID int64, userID string) (*apistructs.NotifyGroupDetail, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +47,7 @@ func (b *Bundle) GetNotifyGroupDetail(id int64, orgID int64, userID string) (*ap
 }
 
 func (b *Bundle) CreateNotifyGroup(orgID string, userID string, request *apistructs.CreateNotifyGroupRequest) (*apistructs.NotifyGroup, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +65,8 @@ func (b *Bundle) CreateNotifyGroup(orgID string, userID string, request *apistru
 	return &getResp.Data, nil
 }
 
-func (b *Bundle) QueryNotifyGroup(orgID string, request *apistructs.QueryNotifyGroupRequest) (*apistructs.QueryNotifyGroupData, error) {
-	host, err := b.urls.CoreServices()
+func (b *Bundle) QueryNotifyGroup(orgID string, request *apistructs.QueryNotifyGroupRequest) (*apistructs.QueryNotifyGroupResponse, error) {
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -76,6 +76,9 @@ func (b *Bundle) QueryNotifyGroup(orgID string, request *apistructs.QueryNotifyG
 		Param("scopeType", request.ScopeType).
 		Param("scopeId", request.ScopeID).
 		Param("label", request.Label).
+		Param("name", request.Name).
+		Param("pageNo", strconv.Itoa(int(request.PageNo))).
+		Param("pageSize", strconv.Itoa(int(request.PageSize))).
 		Header("Org-ID", orgID).Do().JSON(&getResp)
 	if err != nil {
 		return nil, apierrors.ErrInvoke.InternalError(err)
@@ -86,11 +89,11 @@ func (b *Bundle) QueryNotifyGroup(orgID string, request *apistructs.QueryNotifyG
 	if !resp.IsOK() || !getResp.Success {
 		return nil, toAPIError(resp.StatusCode(), getResp.Error)
 	}
-	return &getResp.Data, nil
+	return &getResp, nil
 }
 
 func (b *Bundle) GetNotifyGroup(id int64, orgID string) (*apistructs.GetNotifyGroupResponse, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +111,7 @@ func (b *Bundle) GetNotifyGroup(id int64, orgID string) (*apistructs.GetNotifyGr
 }
 
 func (b *Bundle) UpdateNotifyGroup(id int64, orgID string, request *apistructs.UpdateNotifyGroupRequest) (*apistructs.NotifyGroup, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +129,7 @@ func (b *Bundle) UpdateNotifyGroup(id int64, orgID string, request *apistructs.U
 }
 
 func (b *Bundle) DeleteNotifyGroup(id int64, orgID string) (*apistructs.NotifyGroup, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +147,7 @@ func (b *Bundle) DeleteNotifyGroup(id int64, orgID string) (*apistructs.NotifyGr
 }
 
 func (b *Bundle) QueryNotifiesBySource(orgID string, sourceType, sourceID, itemName, label string, clusterNames ...string) ([]*apistructs.NotifyDetail, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +175,7 @@ func (b *Bundle) QueryNotifiesBySource(orgID string, sourceType, sourceID, itemN
 }
 
 func (b *Bundle) CreateNotifyHistory(request *apistructs.CreateNotifyHistoryRequest) (int64, error) {
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return 0, err
 	}
@@ -193,7 +196,7 @@ func (b *Bundle) CreateNotifyHistory(request *apistructs.CreateNotifyHistoryRequ
 // GetNotifyConfig 获取通知配置
 func (b *Bundle) GetNotifyConfig(orgIDstr, userID string) (*apistructs.NotifyConfigUpdateRequestBody, error) {
 	// TODO: userID should be deprecated
-	host, err := b.urls.CoreServices()
+	host, err := b.urls.ErdaServer()
 	if err != nil {
 		return nil, err
 	}

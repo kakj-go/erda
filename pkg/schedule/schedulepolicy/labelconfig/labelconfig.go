@@ -39,6 +39,8 @@ const (
 	EXECUTOR_SPARK = "SPARK"
 	// EXECUTOR_SPARK k8s spark
 	EXECUTOR_K8SSPARK = "K8SSPARK"
+	// EXECUTOR_FLINK k8s flink
+	EXECUTOR_K8SFLINK = "K8SFLINK"
 	// EXECUTOR_FLINK flink
 	EXECUTOR_FLINK = "FLINK"
 	// EXECUTOR_K8SJOB k8sjob
@@ -106,6 +108,8 @@ const (
 	// K8SLabelPrefix K8S label prefix
 	// Both node and pod labels use this prefix
 	K8SLabelPrefix = "dice/"
+
+	BIGDATA_AFFINITY_LABELS = "__bigdata_affinity_labels"
 )
 
 // LabelPipelineFunc Types of all filter functions in labelpipeline

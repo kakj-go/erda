@@ -18,37 +18,58 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/erda-project/erda-proto-go/dop/issue/core/pb"
 )
 
 type TestFileRecord struct {
-	ID          uint64          `json:"id"`
-	FileName    string          `json:"name"`
-	Description string          `json:"description"`
-	ProjectID   uint64          `json:"projectID"`
-	TestSetID   uint64          `json:"testSetID"`
-	ApiFileUUID string          `json:"apiFileUUID"`
-	Type        FileActionType  `json:"type"`
-	State       FileRecordState `json:"state"`
-	CreatedAt   time.Time       `json:"createdAt"`
-	UpdatedAt   time.Time       `json:"updatedAt"`
-	OperatorID  string          `json:"operatorID"`
+	ID                 uint64          `json:"id"`
+	FileName           string          `json:"name"`
+	Description        string          `json:"description"`
+	ProjectName        string          `json:"projectName"`
+	ProjectDisplayName string          `json:"projectDisplayName"`
+	OrgID              uint64          `json:"orgID"`
+	ProjectID          uint64          `json:"projectID"`
+	TestSetID          uint64          `json:"testSetID"`
+	ApiFileUUID        string          `json:"apiFileUUID"`
+	SpaceID            uint64          `json:"spaceID"`
+	Type               FileActionType  `json:"type"`
+	State              FileRecordState `json:"state"`
+	ErrorInfo          string          `json:"errorInfo"`
+	CreatedAt          time.Time       `json:"createdAt"`
+	UpdatedAt          time.Time       `json:"updatedAt"`
+	OperatorID         string          `json:"operatorID"`
 }
 
 type TestFileRecordRequest struct {
 	ID          uint64          `json:"id"`
 	FileName    string          `json:"name"`
+	OrgID       uint64          `json:"orgID"`
 	ProjectID   uint64          `json:"projectID"`
+	SpaceID     uint64          `json:"spaceID"`
 	Description string          `json:"description"`
 	ApiFileUUID string          `json:"apiFileUUID"`
 	Type        FileActionType  `json:"type"`
 	State       FileRecordState `json:"state"`
 	Extra       TestFileExtra   `json:"extra"`
+	ErrorInfo   error           `json:"errorInfo"`
 	IdentityInfo
 }
 
 type TestFileExtra struct {
-	ManualTestFileExtraInfo    *ManualTestFileExtraInfo    `json:"manualTestExtraFileInfo,omitempty"`
-	AutotestSpaceFileExtraInfo *AutoTestSpaceFileExtraInfo `json:"autotestSpaceFileExtraInfo,omitempty"`
+	IssueFileExtraInfo            *IssueFileExtraInfo            `json:"issueFileExtraInfo,omitempty"`
+	ManualTestFileExtraInfo       *ManualTestFileExtraInfo       `json:"manualTestExtraFileInfo,omitempty"`
+	AutotestSpaceFileExtraInfo    *AutoTestSpaceFileExtraInfo    `json:"autotestSpaceFileExtraInfo,omitempty"`
+	AutotestSceneSetFileExtraInfo *AutoTestSceneSetFileExtraInfo `json:"autotestSceneSetFileExtraInfo,omitempty"`
+	ProjectTemplateFileExtraInfo  *ProjectTemplateFileExtraInfo  `json:"projectTemplateFileExtraInfo,omitempty"`
+	ProjectPackageFileExtraInfo   *ProjectPackageFileExtraInfo   `json:"projectPackageFileExtraInfo,omitempty"`
+}
+
+const TestFileRecordErrorMaxLength = 2048
+
+type IssueFileExtraInfo struct {
+	ImportRequest *pb.ImportExcelIssueRequest `json:"importRequest,omitempty"`
+	ExportRequest *pb.ExportExcelIssueRequest `json:"exportRequest,omitempty"`
 }
 
 type ManualTestFileExtraInfo struct {
@@ -63,26 +84,59 @@ type AutoTestSpaceFileExtraInfo struct {
 	ExportRequest *AutoTestSpaceExportRequest `json:"exportRequest,omitempty"`
 }
 
+type AutoTestSceneSetFileExtraInfo struct {
+	ExportRequest *AutoTestSceneSetExportRequest `json:"exportRequest,omitempty"`
+	ImportRequest *AutoTestSceneSetImportRequest `json:"importRequest"`
+}
+
+type ProjectTemplateFileExtraInfo struct {
+	ExportRequest *ExportProjectTemplateRequest `json:"exportRequest,omitempty"`
+	ImportRequest *ImportProjectTemplateRequest `json:"importRequest,omitempty"`
+}
+
+type ProjectPackageFileExtraInfo struct {
+	ExportRequest *ExportProjectPackageRequest `json:"exportRequest,omitempty"`
+	ImportRequest *ImportProjectPackageRequest `json:"importRequest,omitempty"`
+}
+
 type FileRecordState string
 
 type FileActionType string
 
 const (
-	FileRecordStatePending    FileRecordState = "pending"
-	FileRecordStateProcessing FileRecordState = "processing"
-	FileRecordStateSuccess    FileRecordState = "success"
-	FileRecordStateFail       FileRecordState = "fail"
-	FileActionTypeCopy        FileActionType  = "copy"
-	FileActionTypeImport      FileActionType  = "import"
-	FileActionTypeExport      FileActionType  = "export"
-	FileSpaceActionTypeExport FileActionType  = "spaceExport"
-	FileSpaceActionTypeImport FileActionType  = "spaceImport"
+	FileRecordStatePending       FileRecordState = "pending"
+	FileRecordStateProcessing    FileRecordState = "processing"
+	FileRecordStateSuccess       FileRecordState = "success"
+	FileRecordStateFail          FileRecordState = "fail"
+	FileActionTypeCopy           FileActionType  = "copy"
+	FileActionTypeImport         FileActionType  = "import"
+	FileActionTypeExport         FileActionType  = "export"
+	FileSpaceActionTypeExport    FileActionType  = "spaceExport"
+	FileSpaceActionTypeImport    FileActionType  = "spaceImport"
+	FileSceneSetActionTypeExport FileActionType  = "sceneSetExport"
+	FileSceneSetActionTypeImport FileActionType  = "sceneSetImport"
+	FileIssueActionTypeImport    FileActionType  = "issueImport"
+	FileIssueActionTypeExport    FileActionType  = "issueExport"
+	FileProjectTemplateExport    FileActionType  = "projectTemplateExport"
+	FileProjectTemplateImport    FileActionType  = "projectTemplateImport"
+	FileProjectPackageExport     FileActionType  = "projectPackageExport"
+	FileProjectPackageImport     FileActionType  = "projectPackageImport"
 )
 
 type ListTestFileRecordsRequest struct {
-	ProjectID uint64           `json:"projectID"`
-	Types     []FileActionType `json:"types"`
-	Locale    string           `json:"locale"`
+	ProjectID          uint64           `json:"projectID"`
+	ProjectIDs         []uint64         `json:"-"`
+	ProjectName        string           `json:"projectName"`
+	ProjectDisplayName string           `json:"projectDisplayName"`
+	OrgID              uint64           `json:"orgID"`
+	SpaceID            uint64           `json:"spaceID"`
+	Types              []FileActionType `json:"types"`
+	Locale             string           `json:"locale"`
+	PageNo             int              `json:"pageNo"`
+	PageSize           int              `json:"pageSize"`
+	Asc                bool             `json:"asc"`
+
+	IdentityInfo
 }
 
 func (r ListTestFileRecordsRequest) ConvertToQueryParams() url.Values {
@@ -112,4 +166,5 @@ type ListTestFileRecordsResponse struct {
 type ListTestFileRecordsResponseData struct {
 	Counter map[string]int   `json:"counter"`
 	List    []TestFileRecord `json:"list"`
+	Total   int              `json:"total"`
 }

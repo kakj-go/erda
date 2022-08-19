@@ -96,10 +96,14 @@ func bigdataLabelFilter(
 		li.ExecutorKind == labelconfig.EXECUTOR_K8SJOB ||
 		li.ExecutorKind == labelconfig.EXECUTOR_SPARK ||
 		li.ExecutorKind == labelconfig.EXECUTOR_K8SSPARK ||
-		li.ExecutorKind == labelconfig.EXECUTOR_FLINK {
+		li.ExecutorKind == labelconfig.EXECUTOR_FLINK ||
+		li.ExecutorKind == labelconfig.EXECUTOR_K8SFLINK {
 		if kind, ok := li.Label[apistructs.LabelJobKind]; ok && kind == apistructs.TagBigdata {
 			r.ExclusiveLikes = append(r.ExclusiveLikes, apistructs.TagBigdata)
 			r2.BigData = true
+			if bigDataLabelStr, ok := li.Label[labelconfig.BIGDATA_AFFINITY_LABELS]; ok {
+				r2.BigDataLabels = strings.Split(bigDataLabelStr, ",")
+			}
 		}
 	}
 	// TODO: stand for bigdata service

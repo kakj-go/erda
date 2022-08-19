@@ -1,0 +1,126 @@
+syntax = "proto3";
+
+package erda.dop.devflowrule;
+
+import "common/openapi.proto";
+import "github.com/envoyproxy/protoc-gen-validate/validate/validate.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/erda-project/erda-proto-go/dop/devflowrule/pb";
+
+service DevFlowRuleService {
+    option(erda.common.openapi_service) = {
+        service: "dop",
+        auth: {
+            check_login: true,
+            check_token: true,
+        }
+    };
+    rpc CreateDevFlowRule(CreateDevFlowRuleRequest)
+            returns (CreateDevFlowRuleResponse) {
+    }
+    rpc DeleteDevFlowRule(DeleteDevFlowRuleRequest)
+            returns (DeleteDevFlowRuleResponse) {
+    }
+    rpc UpdateDevFlowRule(UpdateDevFlowRuleRequest)
+            returns (UpdateDevFlowRuleResponse) {
+        option(google.api.http) = {
+            put: "/api/devFlowRule/{ID}",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devFlowRule/{ID}",
+        };
+    }
+    rpc GetDevFlowRulesByProjectID(GetDevFlowRuleRequest)
+            returns (GetDevFlowRuleResponse) {
+        option(google.api.http) = {
+            get: "/api/devFlowRule/actions/get-by-projectID",
+        };
+        option(erda.common.openapi) = {
+            path: "/api/devFlowRule/actions/get-by-projectID",
+        };
+    }
+}
+
+message CreateDevFlowRuleRequest {
+    uint64 projectID = 1;
+    string userID = 2;
+}
+
+message CreateDevFlowRuleResponse {
+    DevFlowRule data = 1;
+}
+
+message DeleteDevFlowRuleRequest {
+    uint64 projectID = 1;
+    string userID = 2;
+}
+
+message DeleteDevFlowRuleResponse {
+
+}
+
+message UpdateDevFlowRuleRequest {
+    string ID = 1 [json_name = "id"];
+    repeated Flow flows = 2 ;
+    repeated BranchPolicy branchPolicies = 3;
+}
+
+message UpdateDevFlowRuleResponse {
+    DevFlowRule data = 1;
+}
+
+message GetDevFlowRuleRequest {
+    uint64 projectID = 1;
+}
+
+message GetDevFlowRuleResponse {
+    DevFlowRule data = 1;
+}
+
+message DevFlowRule {
+    string ID = 1 [json_name = "id"];
+    repeated Flow flows = 2 ;
+    uint64 orgID = 3;
+    string orgName = 4;
+    uint64 projectID = 5;
+    string projectName = 6;
+    google.protobuf.Timestamp timeCreated = 7;
+    google.protobuf.Timestamp timeUpdated = 8;
+    string creator = 9;
+    string updater = 10;
+    repeated BranchPolicy branchPolicies = 11;
+}
+
+message FlowWithBranchPolicy {
+    Flow flow = 1;
+    BranchPolicy branchPolicy = 2;
+}
+
+message Flow {
+    string name = 1;
+    string targetBranch = 2;
+    string artifact = 3;
+    string environment = 4;
+
+}
+
+message BranchPolicy {
+    string branch = 1;
+    string branchType = 2;
+    Policy policy = 3;
+}
+
+message Policy {
+    string sourceBranch = 1;
+    string currentBranch = 2;
+    string tempBranch = 3;
+    TargetBranch targetBranch = 4;
+}
+
+message TargetBranch {
+    string mergeRequest = 1;
+    string cherryPick = 2;
+}

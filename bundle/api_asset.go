@@ -25,6 +25,8 @@ import (
 	"github.com/erda-project/erda/pkg/http/httputil"
 )
 
+const listRuntimesGroupByAppsAPI = "/api/runtimes/actions/group-by-apps"
+
 func GetApplicationRuntimesAPI() string {
 	return "/api/runtimes"
 }
@@ -67,30 +69,37 @@ type GetApplicationRuntimesResponse struct {
 }
 
 type GetApplicationRuntimesDataEle struct {
-	ID                    uint64                              `json:"id"`
-	Name                  string                              `json:"name"`
-	ClusterID             uint64                              `json:"clusterId"`
-	ClusterName           string                              `json:"clusterName"`
-	ClusterType           string                              `json:"clusterType"`
-	CreatedAt             time.Time                           `json:"createdAt"`
-	DeleteStatus          string                              `json:"deleteStatus"`
-	DeployStatus          string                              `json:"deployStatus"`
-	Errors                interface{}                         `json:"errors"`
-	Extra                 *GetApplicationRuntimesDataEleExtra `json:"extra"`
-	LastMessage           interface{}                         `json:"lastMessage"`
-	LastOperateTime       time.Time                           `json:"lastOperateTime"`
-	LastOperator          string                              `json:"lastOperator"`
-	LastOperatorAvatar    string                              `json:"lastOperatorAvatar"`
-	LastOperatorName      string                              `json:"lastOperatorName"`
-	ProjectID             uint64                              `json:"projectId"`
-	ReleaseID             string                              `json:"releaseId"`
-	ServiceGroupName      string                              `json:"serviceGroupName"`
-	ServiceGroupNamespace string                              `json:"serviceGroupNamespace"`
-	Services              interface{}                         `json:"services"`
-	Source                string                              `json:"source"`
-	Status                string                              `json:"status"`
-	TimeCreated           time.Time                           `json:"timeCreated"`
-	UpdatedAt             time.Time                           `json:"updatedAt"`
+	ID                    uint64                                          `json:"id"`
+	Name                  string                                          `json:"name"`
+	ClusterID             uint64                                          `json:"clusterId"`
+	ClusterName           string                                          `json:"clusterName"`
+	ClusterType           string                                          `json:"clusterType"`
+	CreatedAt             time.Time                                       `json:"createdAt"`
+	DeleteStatus          string                                          `json:"deleteStatus"`
+	DeployStatus          string                                          `json:"deployStatus"`
+	Errors                interface{}                                     `json:"errors"`
+	Extra                 *GetApplicationRuntimesDataEleExtra             `json:"extra"`
+	LastMessage           interface{}                                     `json:"lastMessage"`
+	LastOperateTime       time.Time                                       `json:"lastOperateTime"`
+	LastOperator          string                                          `json:"lastOperator"`
+	LastOperatorAvatar    string                                          `json:"lastOperatorAvatar"`
+	LastOperatorName      string                                          `json:"lastOperatorName"`
+	LastOperatorId        uint64                                          `json:"lastOperatorId"`
+	ProjectID             uint64                                          `json:"projectId"`
+	ReleaseID             string                                          `json:"releaseId"`
+	ServiceGroupName      string                                          `json:"serviceGroupName"`
+	ServiceGroupNamespace string                                          `json:"serviceGroupNamespace"`
+	Services              map[string]*apistructs.RuntimeInspectServiceDTO `json:"services"`
+	Source                string                                          `json:"source"`
+	Status                string                                          `json:"status"`
+	TimeCreated           time.Time                                       `json:"timeCreated"`
+	UpdatedAt             time.Time                                       `json:"updatedAt"`
+	Creator               string                                          `json:"creator"`
+	ApplicationID         uint64                                          `json:"applicationId"`
+	DeploymentOrderName   string                                          `json:"deploymentOrderName"`
+	ReleaseVersion        string                                          `json:"releaseVersion"`
+	RawStatus             string                                          `json:"rawStatus"`
+	RawDeploymentStatus   string                                          `json:"rawDeploymentStatus"`
 	// 忽略其他字段
 }
 
@@ -128,9 +137,49 @@ func (b *Bundle) GetApplicationRuntimes(applicationID uint64, orgID uint64, user
 	return fetchResp.Data, nil
 }
 
+// ListRuntimesGroupByApps queries the runtimes for the given applications ids
+// if workspace not specified ,return all runtimes.
+func (b *Bundle) ListRuntimesGroupByApps(orgID uint64, userID string, applicationsIDs []uint64, workspace string) (map[uint64][]*GetApplicationRuntimesDataEle, error) {
+	l := logrus.WithField("func", "*Bundle.ListRuntimesGroupByApps")
+	host, err := b.urls.Orchestrator()
+	if err != nil {
+		return nil, err
+	}
+
+	type response struct {
+		apistructs.Header
+		Data map[uint64][]*GetApplicationRuntimesDataEle `json:"data"`
+	}
+	var fetchResp response
+	request := b.hc.Get(host).
+		Path(listRuntimesGroupByAppsAPI).
+		Header(httputil.InternalHeader, "bundle").
+		Header("User-ID", userID).
+		Header("Org-ID", strconv.FormatUint(orgID, 10))
+	for _, appID := range applicationsIDs {
+		request.Param("applicationID", strconv.FormatUint(appID, 10))
+	}
+	request.Param("workspace", workspace)
+	resp, err := request.Do().JSON(&fetchResp)
+	if err != nil {
+		return nil, err
+	}
+	l.Debugf("body: %s", string(resp.Body()))
+	if !resp.IsOK() || !fetchResp.Success {
+		return nil, toAPIError(resp.StatusCode(), fetchResp.Error)
+	}
+
+	return fetchResp.Data, nil
+}
+
 type GetRuntimeServicesResponse struct {
 	apistructs.Header
 	Data *GetRuntimeServicesResponseData
+}
+
+type GetBatchRuntimeServicesResponse struct {
+	apistructs.Header
+	Data map[uint64]*GetRuntimeServicesResponseData
 }
 
 type GetRuntimeServicesResponseData struct {
@@ -159,6 +208,7 @@ type GetRuntimeServicesResponseDataExtra struct {
 }
 
 type GetRuntimeServicesResponseDataService struct {
+	Status string   `json:"status"`
 	Addrs  []string `json:"addrs"`
 	Expose []string `json:"expose"`
 	// 其他字段略
@@ -189,6 +239,37 @@ func (b *Bundle) GetRuntimeServices(runtimeID uint64, orgID uint64, userID strin
 	}
 
 	logrus.Infof("GetRuntimeServices: respBody: %s", string(resp.Body()))
+
+	return fetchResp.Data, nil
+}
+
+func (b *Bundle) BatchGetRuntimeServices(runtimeIDs []uint64, orgID, userID string) (map[uint64]*GetRuntimeServicesResponseData, error) {
+	host, err := b.urls.Orchestrator()
+	if err != nil {
+		return nil, err
+	}
+	var (
+		fetchResp GetBatchRuntimeServicesResponse
+		hc        = b.hc
+	)
+
+	req := hc.Get(host).
+		Path("/api/runtimesServices").
+		Header(httputil.InternalHeader, "bundle").
+		Header("User-ID", userID).
+		Header("Org-ID", orgID)
+	for i := 0; i < len(runtimeIDs); i++ {
+		req.Param("runtimeID", strconv.FormatUint(runtimeIDs[i], 10))
+	}
+	resp, err := req.Do().JSON(&fetchResp)
+	if err != nil {
+		return nil, apierrors.ErrInvoke.InternalError(err)
+	}
+	if !resp.IsOK() || !fetchResp.Success {
+		return nil, toAPIError(resp.StatusCode(), fetchResp.Error)
+	}
+
+	logrus.Infof("BatchGetRuntimeServices: respBody: %s", string(resp.Body()))
 
 	return fetchResp.Data, nil
 }

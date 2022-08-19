@@ -57,9 +57,10 @@ const (
 	DeleteIterationTemplate TemplateName = "deleteIteration"
 	UpdateIterationTemplate TemplateName = "updateIteration"
 	// =====================Org============================
-	CreateOrgTemplate TemplateName = "createOrg"
-	DeleteOrgTemplate TemplateName = "deleteOrg"
-	UpdateOrgTemplate TemplateName = "updateOrg"
+	CreateOrgTemplate   TemplateName = "createOrg"
+	DeleteOrgTemplate   TemplateName = "deleteOrg"
+	UpdateOrgTemplate   TemplateName = "updateOrg"
+	UpdateOrgTemplateV2 TemplateName = "updateOrgV2"
 	// =====================Project==============================
 	CreateProjectLabelTemplate TemplateName = "createProjectLabel"
 	DeleteProjectLabelTemplate TemplateName = "deleteProjectLabel"
@@ -70,6 +71,8 @@ const (
 	// =====================Member===============================
 	AddMemberTemplate    TemplateName = "addMember"
 	DeleteMemberTemplate TemplateName = "deleteMember"
+	AddServiceMember     TemplateName = "addServiceMember"
+	DeleteServiceMember  TemplateName = "deleteServiceMember"
 	// =====================UC===================================
 	LoginTemplate                       TemplateName = "login"
 	LogoutTemplate                      TemplateName = "logout"
@@ -168,14 +171,34 @@ const (
 	DeleteInitiativeMonitor       TemplateName = "deleteInitiativeMonitor"
 	UpdateInitiativeMonitor       TemplateName = "updateInitiativeMonitor"
 	// ========================Addon================================
-	CreateCustomAddonTemplate TemplateName = "createCustomAddon"
-	DeleteAddonTemplate       TemplateName = "deleteAddon"
+	CreateCustomAddonTemplate                TemplateName = "createCustomAddon"
+	DeleteAddonTemplate                      TemplateName = "deleteAddon"
+	CreateMySQLAddonAccountTemplate          TemplateName = "createMySQLAddonAccount"
+	DeleteMySQLAddonAccountTemplate          TemplateName = "deleteMySQLAddonAccount"
+	ResetAttachmentMySQLAddonAccountTemplate TemplateName = "resetAttachmentMySQLAddonAccount"
 	// ========================Runtime================================
 	DeleteRuntimeTemplate   TemplateName = "deleteRuntime"
 	ScaleRuntimeTemplate    TemplateName = "scaleRuntime"
 	RedeployRuntimeTemplate TemplateName = "redeployRuntime"
 	RollbackRuntimeTemplate TemplateName = "rollbackRuntime"
 	DeployRuntimeTemplate   TemplateName = "deployRuntime"
+	CreateAndApplyHPARule   TemplateName = "createAndApplyHPARule"
+	ApplyOrCancelHPARule    TemplateName = "applyOrCancelHPARule"
+	UpdateHPARule           TemplateName = "updateHPARule"
+	DeleteHPARule           TemplateName = "deleteHPARule"
+
+	// =====================NotifyGroup============================
+	UpdateNotifyGroup        TemplateName = "updateNotifyGroup"
+	DeleteNotifyGroup        TemplateName = "deleteNotifyGroup"
+	UpdateOrgNotifyGroup     TemplateName = "updateOrgNotifyGroup"
+	DeleteOrgNotifyGroup     TemplateName = "deleteOrgNotifyGroup"
+	CreateServiceNotifyGroup TemplateName = "createServiceNotifyGroup"
+	DeleteServiceNotifyGroup TemplateName = "deleteServiceNotifyGroup"
+	UpdateServiceNotifyGroup TemplateName = "updateServiceNotifyGroup"
+	// ========================DeploymentOrder================================
+	CreateDeploymentOrderTemplate  TemplateName = "createDeploymentOrder"
+	ExecuteDeploymentOrderTemplate TemplateName = "executeDeploymentOrder"
+	CancelDeploymentOrderTemplate  TemplateName = "cancelDeploymentOrder"
 
 	// =====================Notify============================
 	CreateProjectNotifyTemplate  TemplateName = "createProjectNotify"
@@ -200,11 +223,12 @@ const (
 	UpdateAppNotifyGroupTemplate     TemplateName = "updateAppNotifyGroup"
 
 	// ========================Test Platform================================
-	QaTestEnvCreateTemplate   TemplateName = "qaTestEnvCreate"
-	QaTestEnvUpdateTemplate   TemplateName = "qaTestEnvUpdate"
-	QaTestEnvDeleteTemplate   TemplateName = "qaTestEnvDelete"
-	ArchiveTestplanTemplate   TemplateName = "archiveTestPlan"
-	UnarchiveTestPlanTemplate TemplateName = "unarchiveTestPlan"
+	QaTestEnvCreateTemplate           TemplateName = "qaTestEnvCreate"
+	QaTestEnvUpdateTemplate           TemplateName = "qaTestEnvUpdate"
+	QaTestEnvDeleteTemplate           TemplateName = "qaTestEnvDelete"
+	ArchiveTestplanTemplate           TemplateName = "archiveTestPlan"
+	UnarchiveTestPlanTemplate         TemplateName = "unarchiveTestPlan"
+	UpdateAutoTestSpaceTemplatePrefix string       = "updateAutoTestSpace"
 	// ========================cmdb==========================================
 	CreateCertificatesTemplate TemplateName = "createCertificates"
 	DeleteCertificatesTemplate TemplateName = "deleteCertificates"
@@ -226,6 +250,39 @@ const (
 	RepoLockedTemplate   TemplateName = "repoLocked"
 	DeleteTagTemplate    TemplateName = "deleteTag"
 	DeleteBranchTemplate TemplateName = "deleteBranch"
+	// =========================release=====================================
+	CreateProjectReleaseTemplate      TemplateName = "createProjectRelease"
+	UpdateProjectReleaseTemplate      TemplateName = "updateProjectRelease"
+	UpdateAppReleaseTemplate          TemplateName = "updateAppRelease"
+	DeleteProjectReleaseTemplate      TemplateName = "deleteProjectRelease"
+	DeleteAppReleaseTemplate          TemplateName = "deleteAppRelease"
+	FormalProjectReleaseTemplate      TemplateName = "formalProjectRelease"
+	FormalAppReleaseTemplate          TemplateName = "formalAppRelease"
+	BatchDeleteProjectReleaseTemplate TemplateName = "batchDeleteProjectRelease"
+	BatchDeleteAppReleaseTemplate     TemplateName = "batchDeleteAppRelease"
+	BatchFormalReleaseProjectTemplate TemplateName = "batchFormalProjectRelease"
+	BatchFormalReleaseAppTemplate     TemplateName = "batchFormalAppRelease"
+	CreateReleaseRuleTemplate         TemplateName = "createReleaseRule"
+	UpdateReleaseRuleTemplate         TemplateName = "updateReleaseRule"
+	DeleteReleaseRuleTemplate         TemplateName = "deleteReleaseRule"
+
+	AddDashboard           TemplateName = "addDashboard"
+	UpdateDashboard        TemplateName = "updateDashboard"
+	DeleteDashboard        TemplateName = "deleteDashboard"
+	AddServiceDashboard    TemplateName = "addServiceDashboard"
+	DeleteServiceDashboard TemplateName = "deleteServiceDashboard"
+	UpdateServiceDashboard TemplateName = "updateServiceDashboard"
+
+	CreateServiceToken TemplateName = "createServiceToken"
+	DeleteServiceToken TemplateName = "deleteServiceToken"
+
+	CreateAnalyzerRule TemplateName = "createAnalyzerRule"
+	UpdateAnalyzerRule TemplateName = "updateAnalyzerRule"
+	DeleteAnalyzerRule TemplateName = "deleteAnalyzerRule"
+
+	CreateOrgAnalyzerRule TemplateName = "createOrgAnalyzerRule"
+	UpdateOrgAnalyzerRule TemplateName = "updateOrgAnalyzerRule"
+	DeleteOrgAnalyzerRule TemplateName = "deleteOrgAnalyzerRule"
 )
 
 // AuditTemplateMap 解析前端审计模版全家桶
@@ -240,10 +297,10 @@ type AuditTemplateDetail struct {
 
 var (
 	regS = []*regexp.Regexp{
-		regexp.MustCompile(`(.*)\[@([a-zA-Z]*)\]\([a-zA-Z]*\)(.*)`),
-		regexp.MustCompile(`(.*)<<(.*)>>(.*)`),
-		regexp.MustCompile(`(.*)\[@([a-zA-Z]*)\](.*)`),
-		regexp.MustCompile(`(.*)\[(.*)\]\(.*\)(.*)`),
+		regexp.MustCompile(`(?s)(.*)\[@([a-zA-Z]*)\]\([a-zA-Z]*\)(.*)`),
+		regexp.MustCompile(`(?s)(.*)<<(.*)>>(.*)`),
+		regexp.MustCompile(`(?s)(.*)\[@([a-zA-Z]*)\](.*)`),
+		regexp.MustCompile(`(?s)(.*)\[(.*)\]\(.*\)(.*)`),
 	}
 )
 

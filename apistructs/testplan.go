@@ -15,28 +15,31 @@
 package apistructs
 
 import (
+	"fmt"
 	"time"
 )
 
 // TestPlan 测试计划
 type TestPlan struct {
-	ID         uint64            `json:"id"`
-	Name       string            `json:"name"`
-	OwnerID    string            `json:"ownerID"`
-	PartnerIDs []string          `json:"partnerIDs"`
-	Status     TPStatus          `json:"status"`
-	ProjectID  uint64            `json:"projectID"`
-	CreatorID  string            `json:"creatorID"`
-	UpdaterID  string            `json:"updaterID"`
-	CreatedAt  *time.Time        `json:"createdAt"`
-	UpdatedAt  *time.Time        `json:"updatedAt"`
-	Summary    string            `json:"summary"`
-	StartedAt  *time.Time        `json:"startedAt"`
-	EndedAt    *time.Time        `json:"endedAt"`
-	RelsCount  TestPlanRelsCount `json:"relsCount"`
-	Type       TestPlanType      `json:"type"`
-	Inode      string            `json:"inode,omitempty"`
-	IsArchived bool              `json:"isArchived"`
+	ID            uint64            `json:"id"`
+	Name          string            `json:"name"`
+	OwnerID       string            `json:"ownerID"`
+	PartnerIDs    []string          `json:"partnerIDs"`
+	Status        TPStatus          `json:"status"`
+	ProjectID     uint64            `json:"projectID"`
+	CreatorID     string            `json:"creatorID"`
+	UpdaterID     string            `json:"updaterID"`
+	CreatedAt     *time.Time        `json:"createdAt"`
+	UpdatedAt     *time.Time        `json:"updatedAt"`
+	Summary       string            `json:"summary"`
+	StartedAt     *time.Time        `json:"startedAt"`
+	EndedAt       *time.Time        `json:"endedAt"`
+	RelsCount     TestPlanRelsCount `json:"relsCount"`
+	Type          TestPlanType      `json:"type"`
+	Inode         string            `json:"inode,omitempty"`
+	IsArchived    bool              `json:"isArchived"`
+	IterationID   uint64            `json:"iterationID"`
+	IterationName string            `json:"iterationName"`
 }
 
 // TestPlanRelsCount 测试计划关联的测试用例状态个数
@@ -75,15 +78,35 @@ var (
 
 // TestPlanCreateRequest 测试计划创建请求
 type TestPlanCreateRequest struct {
-	Name       string   `json:"name"`
-	OwnerID    string   `json:"ownerID"`
-	PartnerIDs []string `json:"partnerIDs"`
-	ProjectID  uint64   `json:"projectID"`
+	Name        string   `json:"name"`
+	OwnerID     string   `json:"ownerID"`
+	PartnerIDs  []string `json:"partnerIDs"`
+	ProjectID   uint64   `json:"projectID"`
+	IterationID uint64   `json:"iterationID"`
 
 	// 是否是自动化测试计划
 	IsAutoTest bool `json:"isAutoTest"`
 
 	IdentityInfo
+}
+
+func (t TestPlanCreateRequest) Check() error {
+	if t.Name == "" {
+		return fmt.Errorf("the name is empty")
+	}
+	if t.OwnerID == "" {
+		return fmt.Errorf("the ownerID is empty")
+	}
+	if len(t.PartnerIDs) == 0 {
+		return fmt.Errorf("the partnerIDs is empty")
+	}
+	if t.ProjectID == 0 {
+		return fmt.Errorf("the projectID is 0")
+	}
+	if t.IterationID == 0 {
+		return fmt.Errorf("the iterationID is 0")
+	}
+	return nil
 }
 
 // TestPlanCreateResponse 测试计划创建响应
@@ -102,8 +125,9 @@ type TestPlanUpdateRequest struct {
 	TimestampSecStartedAt *time.Duration `json:"timestampSecStartedAt"`
 	TimestampSecEndedAt   *time.Duration `json:"timestampSecEndedAt"`
 
-	TestPlanID uint64 `json:"-"`
-	IsArchived *bool  `json:"isArchived"`
+	TestPlanID  uint64 `json:"-"`
+	IsArchived  *bool  `json:"isArchived"`
+	IterationID uint64 `json:"iterationID"`
 
 	IdentityInfo
 }
@@ -116,11 +140,12 @@ type TestPlanGetResponse struct {
 
 // TestPlanPagingRequest 测试计划列表请求
 type TestPlanPagingRequest struct {
-	Name       string       `schema:"name"`
-	Statuses   []TPStatus   `schema:"status"`
-	ProjectID  uint64       `schema:"projectID"`
-	Type       TestPlanType `schema:"type"`
-	IsArchived *bool        `schema:"isArchived"`
+	Name         string       `schema:"name"`
+	Statuses     []TPStatus   `schema:"status"`
+	ProjectID    uint64       `schema:"projectID"`
+	IterationIDs []uint64     `schema:"iterationID"`
+	Type         TestPlanType `schema:"type"`
+	IsArchived   *bool        `schema:"isArchived"`
 
 	// member about
 	OwnerIDs   []string `schema:"ownerID"`
@@ -180,14 +205,22 @@ type TestPlanCaseRelPagingRequest struct {
 	UpdatedAtEndInclude   *time.Time `schema:"-"`
 
 	// order by field
-	OrderByPriorityAsc   *bool `schema:"orderByPriorityAsc"`
-	OrderByPriorityDesc  *bool `schema:"orderByPriorityDesc"`
-	OrderByUpdaterIDAsc  *bool `schema:"orderByUpdaterIDAsc"`
-	OrderByUpdaterIDDesc *bool `schema:"orderByUpdaterIDDesc"`
-	OrderByUpdatedAtAsc  *bool `schema:"orderByUpdatedAtAsc"`
-	OrderByUpdatedAtDesc *bool `schema:"orderByUpdatedAtDesc"`
-	OrderByIDAsc         *bool `schema:"orderByIDAsc"`
-	OrderByIDDesc        *bool `schema:"orderByIDDesc"`
+	OrderFields            []string `schema:"orderField"`
+	OrderByPriorityAsc     *bool    `schema:"orderByPriorityAsc"`
+	OrderByPriorityDesc    *bool    `schema:"orderByPriorityDesc"`
+	OrderByUpdaterIDAsc    *bool    `schema:"orderByUpdaterIDAsc"`
+	OrderByUpdaterIDDesc   *bool    `schema:"orderByUpdaterIDDesc"`
+	OrderByUpdatedAtAsc    *bool    `schema:"orderByUpdatedAtAsc"`
+	OrderByUpdatedAtDesc   *bool    `schema:"orderByUpdatedAtDesc"`
+	OrderByIDAsc           *bool    `schema:"orderByIDAsc"`
+	OrderByIDDesc          *bool    `schema:"orderByIDDesc"`
+	OrderByTestSetIDAsc    *bool    `schema:"orderByTestSetIDAsc"`
+	OrderByTestSetIDDesc   *bool    `schema:"orderByTestSetIDDesc"`
+	OrderByTestSetNameAsc  *bool    `schema:"orderByTestSetNameAsc"`
+	OrderByTestSetNameDesc *bool    `schema:"orderByTestSetNameDesc"`
+
+	// tp
+	TestPlan *TestPlan `schema:"-"` // internal use
 
 	IdentityInfo
 }

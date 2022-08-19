@@ -14,7 +14,12 @@
 
 package apistructs
 
-import "time"
+import (
+	"strings"
+	"time"
+
+	"github.com/pkg/errors"
+)
 
 // ProjectCreateRequest POST /api/projects 创建项目请求结构
 type ProjectCreateRequest struct {
@@ -34,8 +39,10 @@ type ProjectCreateRequest struct {
 	ClusterID   uint64 `json:"clusterId"`   // TODO deprecated
 	ClusterName string `json:"clusterName"` // TODO deprecated
 
-	// 项目各环境集群配置
+	// Deprecated:项目各环境集群配置
 	ClusterConfig map[string]string `json:"clusterConfig"`
+	// 项目各环境集群配置
+	ResourceConfigs *ResourceConfigs `json:"resourceConfig"`
 	// 项目回滚点配置
 	RollbackConfig map[string]int `json:"rollbackConfig"`
 	// +required 单位: c
@@ -44,6 +51,77 @@ type ProjectCreateRequest struct {
 	MemQuota float64 `json:"memQuota"`
 	// +required 项目模版
 	Template ProjectTemplate `json:"template"`
+}
+
+type ResourceConfigs struct {
+	PROD    *ResourceConfig `json:"PROD"`
+	STAGING *ResourceConfig `json:"STAGING"`
+	TEST    *ResourceConfig `json:"TEST"`
+	DEV     *ResourceConfig `json:"DEV"`
+}
+
+func NewResourceConfigs() *ResourceConfigs {
+	return &ResourceConfigs{
+		PROD:    new(ResourceConfig),
+		STAGING: new(ResourceConfig),
+		TEST:    new(ResourceConfig),
+		DEV:     new(ResourceConfig),
+	}
+}
+
+func (cc ResourceConfigs) GetClusterConfig(workspace DiceWorkspace) *ResourceConfig {
+	switch workspace {
+	case ProdWorkspace:
+		return cc.PROD
+	case StagingWorkspace:
+		return cc.STAGING
+	case TestWorkspace:
+		return cc.TEST
+	case DevWorkspace:
+		return cc.DEV
+	default:
+		return new(ResourceConfig)
+	}
+}
+
+func (cc ResourceConfigs) Check() error {
+	for k, v := range map[string]*ResourceConfig{
+		"production": cc.PROD,
+		"staging":    cc.STAGING,
+		"test":       cc.TEST,
+		"dev":        cc.DEV,
+	} {
+		if v == nil {
+			return errors.Errorf("the cluster config on workspace %s is empty", k)
+		}
+	}
+	return nil
+}
+
+func (cc ResourceConfigs) GetWSConfig(workspace DiceWorkspace) *ResourceConfig {
+	switch workspace {
+	case ProdWorkspace:
+		return cc.PROD
+	case StagingWorkspace:
+		return cc.STAGING
+	case TestWorkspace:
+		return cc.TEST
+	case DevWorkspace:
+		return cc.DEV
+	default:
+		return &ResourceConfig{}
+	}
+}
+
+// ResourceConfig
+// CPU quota uint is Core .
+// Mem quota uint is GiB
+type ResourceConfig struct {
+	ClusterName string `json:"clusterName"`
+	// CPUQuota unit is Core
+	CPUQuota float64 `json:"cpuQuota"`
+	// MemQuota unit is GiB
+	MemQuota float64 `json:"memQuota"`
 }
 
 // ProjectCreateResponse POST /api/projects 创建项目响应结构
@@ -86,10 +164,12 @@ type ProjectUpdateBody struct {
 	Logo        string `json:"logo"`
 	Desc        string `json:"desc"`
 	DdHook      string `json:"ddHook"`
-	IsPublic    bool   `json:"isPublic"` // 是否公开项目
 
-	// 项目各环境集群配置
+	// Deprecated:项目各环境集群配置
 	ClusterConfig map[string]string `json:"clusterConfig"`
+	// 项目各环境集群配置
+	ResourceConfigs *ResourceConfigs `json:"resourceConfig"`
+	IsPublic        bool             `json:"isPublic"` // 是否公开项目
 
 	// 项目回滚点配置
 	RollbackConfig map[string]int `json:"rollbackConfig"`
@@ -152,6 +232,10 @@ type ProjectListRequest struct {
 	Joined   bool `query:"joined"` // TODO refactor
 	PageNo   int  `query:"pageNo"`
 	PageSize int  `query:"pageSize"`
+
+	ProjectIDs []uint64 `query:"projectIDs"`
+	KeepMsp    bool     `query:"keepMsp"`
+
 	// 是否只显示公开项目
 	IsPublic bool `query:"isPublic"`
 }
@@ -166,6 +250,30 @@ type ProjectListResponse struct {
 type PagingProjectDTO struct {
 	Total int          `json:"total"`
 	List  []ProjectDTO `json:"list"`
+}
+
+type GetMenuResponse struct {
+	Header
+	Data []*MenuItem `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
+}
+
+type MenuItem struct {
+	ClusterName string            `json:"clusterName,omitempty"`
+	ClusterType string            `json:"clusterType,omitempty"`
+	Key         string            `json:"key,omitempty"`
+	CnName      string            `json:"cnName,omitempty"`
+	EnName      string            `json:"enName,omitempty"`
+	Href        string            `json:"href,omitempty"`
+	Params      map[string]string `json:"params,omitempty"`
+	Children    []*MenuItem       `json:"children,omitempty"`
+	// 前端用于判断菜单是否显示，默认引导页为true，功能页为false，当tenant存在时进行反转
+	Exists bool `json:"exists,omitempty"`
+	// 内部字段: 强制显示
+	MustExists bool `json:"mustExists,omitempty"`
+	// 内部字段: 只在K8S集群显示
+	OnlyK8S bool ` json:"onlyK8S,omitempty"`
+	// 内部字段: 只在非K8S集群显示
+	OnlyNotK8S bool `protobuf:"varint,12,opt,name=onlyNotK8S,proto3" json:"onlyNotK8S,omitempty"`
 }
 
 // ProjectDTO 项目结构
@@ -202,19 +310,90 @@ type ProjectDTO struct {
 	ProjectResourceUsage
 
 	// 项目各环境集群配置
-	ClusterConfig  map[string]string `json:"clusterConfig"`
-	RollbackConfig map[string]int    `json:"rollbackConfig"`
-	CpuQuota       float64           `json:"cpuQuota"`
-	MemQuota       float64           `json:"memQuota"`
+	ClusterConfig map[string]string `json:"clusterConfig"`
+	// ResourceConfig shows the relationship between clusters and workspaces,
+	// and contains the quota info for every workspace .
+	ResourceConfig *ResourceConfigsInfo `json:"resourceConfig,omitempty"`
+	RollbackConfig map[string]int       `json:"rollbackConfig"`
+	// Deprecated: to retrieve the quota for every workspace, prefer to use ResourceConfig
+	CpuQuota float64 `json:"cpuQuota"`
+	// Deprecated: to retrieve the quota for every workspace, prefer to use ResourceConfig
+	MemQuota float64 `json:"memQuota"`
 
 	// 项目创建时间
 	CreatedAt time.Time `json:"createdAt"`
-
 	// 项目更新时间
 	UpdatedAt time.Time `json:"updatedAt"`
 
 	// Project type
 	Type string `json:"type"`
+}
+
+type ResourceConfigsInfo struct {
+	PROD    *ResourceConfigInfo `json:"PROD"`
+	STAGING *ResourceConfigInfo `json:"STAGING"`
+	TEST    *ResourceConfigInfo `json:"TEST"`
+	DEV     *ResourceConfigInfo `json:"DEV"`
+}
+
+func NewResourceConfig() *ResourceConfigsInfo {
+	return &ResourceConfigsInfo{
+		PROD:    new(ResourceConfigInfo),
+		STAGING: new(ResourceConfigInfo),
+		TEST:    new(ResourceConfigInfo),
+		DEV:     new(ResourceConfigInfo),
+	}
+}
+
+func (cc ResourceConfigsInfo) GetClusterName(workspace string) string {
+	switch strings.ToLower(workspace) {
+	case "prod":
+		return cc.PROD.ClusterName
+	case "staging":
+		return cc.STAGING.ClusterName
+	case "test":
+		return cc.TEST.ClusterName
+	case "dev":
+		return cc.DEV.ClusterName
+	default:
+		return ""
+	}
+}
+
+func (cc ResourceConfigsInfo) GetWSConfig(workspace string) *ResourceConfigInfo {
+	switch DiceWorkspace(strings.ToUpper(workspace)) {
+	case ProdWorkspace:
+		return cc.PROD
+	case StagingWorkspace:
+		return cc.STAGING
+	case TestWorkspace:
+		return cc.TEST
+	case DevWorkspace:
+		return cc.DEV
+	default:
+		return &ResourceConfigInfo{}
+	}
+}
+
+type ResourceConfigInfo struct {
+	ClusterName             string  `json:"clusterName"`
+	CPUQuota                float64 `json:"cpuQuota"`
+	CPURequest              float64 `json:"cpuRequest"`
+	CPURequestRate          float64 `json:"cpuRequestRate"`
+	CPURequestByAddon       float64 `json:"cpuRequestByAddon"`
+	CPURequestByAddonRate   float64 `json:"cpuRequestByAddonRate"`
+	CPURequestByService     float64 `json:"cpuRequestByService"`
+	CPURequestByServiceRate float64 `json:"cpuRequestByServiceRate"`
+	CPUAvailable            float64 `json:"cpuAvailable,omitempty"`
+	MemQuota                float64 `json:"memQuota"`
+	MemRequest              float64 `json:"memRequest"`
+	MemRequestRate          float64 `json:"memRequestRate"`
+	MemRequestByAddon       float64 `json:"memRequestByAddon"`
+	MemRequestByAddonRate   float64 `json:"memRequestByAddonRate"`
+	MemRequestByService     float64 `json:"memRequestByService"`
+	MemRequestByServiceRate float64 `json:"memRequestByServiceRate"`
+	MemAvailable            float64 `json:"memAvailable,omitempty"`
+	Tips                    string  `json:"tips"`
 }
 
 // ProjectResourceUsage 项目资源使用
@@ -342,9 +521,133 @@ type GetAllProjectsResponse struct {
 
 type GetModelProjectsMapRequest struct {
 	ProjectIDs []uint64 `json:"projectIDs"`
+
+	KeepMsp bool `json:"keepMsp"`
 }
 
 type GetModelProjectsMapResponse struct {
 	Header
 	Data map[uint64]ProjectDTO `json:"data"`
+}
+
+type ExportProjectTemplateRequest struct {
+	ProjectID          uint64 `json:"projectID"`
+	ProjectName        string `json:"projectName"`
+	ProjectDisplayName string `json:"projectDisplayName"`
+	OrgID              int64  `json:"orgID"`
+	IdentityInfo
+}
+
+type ImportProjectTemplateRequest struct {
+	ProjectID          uint64 `json:"projectID"`
+	ProjectName        string `json:"projectName"`
+	ProjectDisplayName string `json:"projectDisplayName"`
+	OrgID              int64  `json:"orgID"`
+	IdentityInfo
+}
+
+type ProjectTemplateMeta struct {
+	OrgName     string `yaml:"org_name" json:"orgName"`
+	ProjectName string `yaml:"project_name" json:"projectName"`
+	Source      string `yaml:"source" json:"source"`
+}
+
+type ProjectTemplateData struct {
+	Version      string              `yaml:"version" json:"version"`
+	Applications []ApplicationDTO    `yaml:"applications" json:"applications"`
+	Meta         ProjectTemplateMeta `yaml:"meta" json:"meta"`
+}
+
+type ProjectPackageRequest struct {
+	ProjectID          uint64 `json:"projectID"`
+	ProjectName        string `json:"projectName"`
+	ProjectDisplayName string `json:"projectDisplayName"`
+	OrgID              uint64 `json:"orgID"`
+	OrgName            string `json:"orgName"`
+	IdentityInfo
+}
+
+type ExportProjectPackageRequest struct {
+	ProjectPackageRequest
+	Artifacts []Artifact `json:"artifacts"`
+}
+
+type ImportProjectPackageRequest struct {
+	ProjectPackageRequest
+}
+
+type ProjectPackage struct {
+	MetaData ProjectPackageMeta
+	Project  ProjectPackageData
+}
+
+type ProjectPackageMeta struct {
+	Version     string     `yaml:"version" json:"version"`
+	CreatedAt   string     `yaml:"createdat" json:"createdat"`
+	Creator     string     `yaml:"creator" json:"creator"`
+	Type        string     `yaml:"type" json:"type"`
+	Source      SourceMeta `yaml:"source" json:"source"`
+	Description string     `yaml:"description,omitempty" json:"description,omitempty"`
+}
+
+type SourceMeta struct {
+	Url          string `yaml:"url" json:"url"`
+	Organization string `yaml:"organization" json:"organization"`
+	Project      string `yaml:"project" json:"project"`
+}
+
+type Artifact struct {
+	Type    string `yaml:"type" json:"type"`
+	Name    string `yaml:"name" json:"name"`
+	Version string `yaml:"version" json:"version"`
+}
+
+type ProjectPackageData struct {
+	Applications []*ApplicationPkg `yaml:"applications" json:"applications"`
+	Artifacts    []*ArtifactPkg    `yaml:"artifacts" json:"artifacts"`
+	Environments EnvPkg            `yaml:"environments" json:"environments"`
+}
+
+type ApplicationPkg struct {
+	Name      string `yaml:"name" json:"name"`
+	ZipRepo   string `yaml:"zip_repo" json:"zip_repo"`
+	GitBranch string `yaml:"-" json:"-"`
+	GitCommit string `yaml:"-" json:"-"`
+}
+
+type ArtifactPkg struct {
+	Artifact
+	ZipFile   string `yaml:"zip_file" json:"zip_file"`
+	ReleaseId string `yaml:"-" json:"-"`
+}
+
+type EnvPkg struct {
+	Include    []string                      `yaml:"include" json:"include"`
+	IncludeDir string                        `yaml:"-" json:"-"`
+	Envs       map[string]ProjectEnvironment `yaml:"-" json:"-"`
+	EnvsValues map[string]interface{}        `yaml:"-" json:"-"`
+}
+
+type ProjectEnvironment struct {
+	Name    DiceWorkspace     `yaml:"name" json:"name"`
+	Addons  []ProjectEnvAddon `yaml:"addons" json:"addons"`
+	Cluster ProjectEnvCluster `yaml:"cluster" json:"cluster"`
+}
+
+type ProjectEnvAddon struct {
+	Name    string                 `yaml:"name" json:"name"`
+	Options map[string]string      `yaml:"options" json:"options"`
+	Type    string                 `yaml:"type" json:"type"`
+	Plan    string                 `yaml:"plan" json:"plan"`
+	Config  map[string]interface{} `yaml:"config" json:"config"`
+}
+
+type ProjectEnvCluster struct {
+	Name  string       `yaml:"name" json:"name"`
+	Quota ClusterQuota `yaml:"quota" json:"quota"`
+}
+
+type ClusterQuota struct {
+	CpuQuota    string `yaml:"cpu_quota" json:"cpu_quota"`
+	MemoryQuota string `yaml:"memory_quota" json:"memory_quota"`
 }

@@ -15,17 +15,26 @@
 package main
 
 import (
+	_ "embed"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
 	"github.com/erda-project/erda/pkg/common"
 
 	// providers and modules
 	_ "github.com/erda-project/erda-infra/providers"
-	_ "github.com/erda-project/erda/modules/orchestrator"
-	_ "github.com/erda-project/erda/modules/orchestrator/components"
+	_ "github.com/erda-project/erda-proto-go/core/clustermanager/cluster/client"
+	_ "github.com/erda-project/erda-proto-go/core/dicehub/release/client"
+	_ "github.com/erda-project/erda-proto-go/core/org/client"
+	_ "github.com/erda-project/erda-proto-go/msp/tenant/client"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/components"
 )
+
+//go:embed bootstrap.yaml
+var bootstrapCfg string
 
 func main() {
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: "conf/orchestrator/orchestrator.yaml",
+		Content: bootstrapCfg,
 	})
 }

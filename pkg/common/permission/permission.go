@@ -64,11 +64,12 @@ const (
 
 // Permission .
 type Permission struct {
-	method   string
-	scope    ValueGetter
-	resource ValueGetter
-	action   Action
-	id       ValueGetter
+	method                 string
+	scope                  ValueGetter
+	resource               ValueGetter
+	action                 Action
+	id                     ValueGetter
+	skipPermInternalClient bool
 	// for String
 	originalMethod   interface{}
 	originalScope    interface{}
@@ -77,6 +78,14 @@ type Permission struct {
 
 func (p *Permission) String() string {
 	return fmt.Sprintf("%s {scope=%v resource=%v action=%s}", getMethodFullName(p.originalMethod), p.originalScope, p.originalResource, p.action)
+}
+
+type Option func(*Permission)
+
+func WithSkipPermInternalClient(skip bool) Option {
+	return func(p *Permission) {
+		p.skipPermInternalClient = skip
+	}
 }
 
 // ValueGetter .
@@ -106,7 +115,11 @@ func (p *provider) Check(perms ...*Permission) transport.ServiceOption {
 			if perm == nil {
 				return nil, errors.NewPermissionError(info.Service()+"/"+info.Method(), "", "permission undefined")
 			}
+			if perm.skipPermInternalClient && apis.IsInternalClient(ctx) {
+				return h(ctx, req)
+			}
 			if perm.resource != nil {
+				ctx = WithPermissionDataContext(ctx)
 				scope, err := perm.scope(ctx, req)
 				if err != nil {
 					return nil, errors.NewPermissionError(info.Service()+"/"+info.Method(), string(perm.action), err.Error())
@@ -145,8 +158,8 @@ func (p *provider) Check(perms ...*Permission) transport.ServiceOption {
 }
 
 // Method .
-func Method(method interface{}, scope, resource interface{}, action Action, id ValueGetter) *Permission {
-	return &Permission{
+func Method(method interface{}, scope, resource interface{}, action Action, id ValueGetter, options ...Option) *Permission {
+	p := &Permission{
 		method:           getMethodName(method),
 		scope:            toValueGetter(scope),
 		resource:         toValueGetter(resource),
@@ -156,6 +169,10 @@ func Method(method interface{}, scope, resource interface{}, action Action, id V
 		originalScope:    scope,
 		originalResource: resource,
 	}
+	for _, op := range options {
+		op(p)
+	}
+	return p
 }
 
 // NoPermMethod 。
@@ -208,6 +225,8 @@ func toValueGetter(v interface{}) ValueGetter {
 		return FiexdValue(v)
 	case ValueGetter:
 		return v
+	case func(ctx context.Context, req interface{}) (string, error):
+		return v
 	case nil:
 		return nil
 	default:
@@ -216,6 +235,42 @@ func toValueGetter(v interface{}) ValueGetter {
 		}
 	}
 	panic(fmt.Errorf("invalid value getter %V", v))
+}
+
+type (
+	permissionDataContextKey uint8
+	permissionData           struct {
+		Data map[string]interface{}
+	}
+)
+
+const permissionDataKey = 0
+
+// GetPermissionDataFromContext .
+func GetPermissionDataFromContext(ctx context.Context, key string) (interface{}, bool) {
+	data, ok := ctx.Value(permissionDataKey).(*permissionData)
+	if !ok {
+		return nil, false
+	}
+	val, ok := data.Data[key]
+	return val, ok
+}
+
+// SetPermissionDataFromContext .
+func SetPermissionDataFromContext(ctx context.Context, key string, val interface{}) {
+	data, ok := ctx.Value(permissionDataKey).(*permissionData)
+	if !ok {
+		return
+	}
+	if data.Data == nil {
+		data.Data = make(map[string]interface{})
+	}
+	data.Data[key] = val
+}
+
+// WithPermissionDataContext .
+func WithPermissionDataContext(ctx context.Context) context.Context {
+	return context.WithValue(ctx, permissionDataKey, &permissionData{})
 }
 
 // FieldValue .

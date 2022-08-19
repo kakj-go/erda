@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/http/pprof"
-	"net/url"
 	"strings"
 	"time"
 
@@ -32,6 +31,7 @@ import (
 
 	"github.com/erda-project/erda/apistructs"
 	"github.com/erda-project/erda/pkg/crypto/uuid"
+	"github.com/erda-project/erda/pkg/goroutine_context"
 	"github.com/erda-project/erda/pkg/http/httpserver/ierror"
 	"github.com/erda-project/erda/pkg/i18n"
 	"github.com/erda-project/erda/pkg/strutil"
@@ -59,10 +59,14 @@ type Server struct {
 type Endpoint struct {
 	Path           string
 	Method         string
-	Handler        func(context.Context, *http.Request, map[string]string) (Responser, error)
-	WriterHandler  func(context.Context, http.ResponseWriter, *http.Request, map[string]string) error
-	ReverseHandler func(context.Context, *http.Request, map[string]string) error
+	Handler        Handler
+	WriterHandler  WriterHandler
+	ReverseHandler ReverseHandler
 }
+
+type Handler func(context.Context, *http.Request, map[string]string) (Responser, error)
+type WriterHandler func(context.Context, http.ResponseWriter, *http.Request, map[string]string) error
+type ReverseHandler func(context.Context, *http.Request, map[string]string) error
 
 // New create an http server.
 func New(addr string) *Server {
@@ -144,16 +148,12 @@ func (s *Server) internal(handler func(context.Context, *http.Request, map[strin
 			locale = s.localeLoader.Locale(localeName)
 		}
 
-		// Manual decoding url var
-		muxVars := mux.Vars(r)
-		for k, v := range muxVars {
-			decodedVar, err := url.QueryUnescape(v)
-			if err != nil {
-				continue
-			}
-			muxVars[k] = decodedVar
-		}
-		response, err := handler(ctx, r, muxVars)
+		// set global context bind goroutine id
+		i18n.SetGoroutineBindLang(localeName)
+		// clear all global context
+		defer goroutine_context.ClearContext()
+
+		response, err := handler(ctx, r, getVars(r))
 		if err == nil && s.localeLoader != nil {
 			response = response.GetLocaledResp(locale)
 		}
@@ -216,7 +216,7 @@ func (s *Server) internalWriterHandler(handler func(context.Context, http.Respon
 
 		handleRequest(r)
 
-		err := handler(ctx, w, r, mux.Vars(r))
+		err := handler(ctx, w, r, getVars(r))
 		if err != nil {
 			logrus.Errorf("failed to handle request: %s (%v)", r.URL.String(), err)
 
@@ -245,7 +245,7 @@ func (s *Server) internalReverseHandler(handler func(context.Context, *http.Requ
 
 			handleRequest(r)
 
-			err := handler(ctx, r, mux.Vars(r))
+			err := handler(ctx, r, getVars(r))
 			if err != nil {
 				logrus.Errorf("failed to handle request: %s (%v)", r.URL.String(), err)
 				return

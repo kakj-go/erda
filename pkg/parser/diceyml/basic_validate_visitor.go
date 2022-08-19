@@ -46,6 +46,17 @@ func (o *BasicValidateVisitor) isEndpointValid(endpoint Endpoint) bool {
 		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "endpoints")] = errors.Wrap(emptyEndpointDomain, o.currentService)
 		return false
 	}
+
+	// replace all ${}
+	rePlaceholder := regexp.MustCompile("\\$\\{(.+?)\\}")
+	if ok := rePlaceholder.MatchString(endpoint.Domain); ok {
+		endpoint.Domain = string(rePlaceholder.ReplaceAllString(endpoint.Domain, ""))
+		// e.g. ${platform.DICE_PROJECT_NAME}.*.
+		if strings.TrimSuffix(endpoint.Domain, ".*") == "" {
+			return true
+		}
+	}
+
 	if strings.HasSuffix(endpoint.Domain, ".*") {
 		if ok, _ := regexp.MatchString(`^[0-9a-zA-z-_]+$`, strings.TrimSuffix(endpoint.Domain, ".*")); !ok {
 			o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService, "endpoints"}, endpoint.Domain)] = errors.Wrap(invalidEndpointDomain, o.currentService)
@@ -72,6 +83,26 @@ func (o *BasicValidateVisitor) VisitService(v DiceYmlVisitor, obj *Service) {
 	// if obj.Image == "" {
 	// 	o.collectErrors = append(o.collectErrors, errors.Wrap(invalidImage, o.currentService))
 	// }
+
+	res := obj.Resources
+
+	if res.MaxCPU <= 0 && res.CPU <= 0 {
+		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "resources")] = errors.Wrap(invalidCPU, o.currentService)
+	}
+
+	if res.MaxMem <= 0 && res.Mem <= 0 {
+		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "resources")] = errors.Wrap(invalidMem, o.currentService)
+	}
+
+	// check whether max_cpu set but smaller than cpu
+	if res.MaxCPU > 0 && res.MaxCPU < res.CPU {
+		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "resources")] = errors.Wrap(invalidMaxCPU, o.currentService)
+	}
+	// check whether max_mem set but smaller than mem
+	if res.MaxMem > 0 && res.MaxMem < res.Mem {
+		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "resources")] = errors.Wrap(invalidMaxMem, o.currentService)
+	}
+
 	for _, port := range obj.Ports {
 		if port.Port <= 0 {
 			o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "ports")] = errors.Wrap(invalidPort, o.currentService)
@@ -85,11 +116,12 @@ func (o *BasicValidateVisitor) VisitService(v DiceYmlVisitor, obj *Service) {
 		}
 	}
 	for _, vol := range obj.Volumes {
-		if !path.IsAbs(vol.Path) {
+		if !path.IsAbs(vol.Path) && !path.IsAbs(vol.TargetPath) {
 			o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService}, "volumes")] = errors.Wrap(invalidVolume, o.currentService)
 			break
 		}
 	}
+
 	switch obj.TrafficSecurity.Mode {
 	case "", "https":
 	default:
@@ -142,6 +174,14 @@ func (o *BasicValidateVisitor) VisitResources(v DiceYmlVisitor, obj *Resources) 
 		if mode != "container" && mode != "host" {
 			o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService, "resources", "network"}, "mode")] = errors.Wrap(invalidNetworkMode, o.currentService)
 		}
+	}
+
+	if obj.EmptyDirCapacity < 0 {
+		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService, "resources"}, "emptydir_size")] = errors.Wrap(invalidEmptyDir, o.currentService)
+	}
+
+	if obj.EphemeralStorageCapacity < 0 {
+		o.collectErrors[yamlHeaderRegexWithUpperHeader([]string{o.currentService, "resources"}, "ephemeral_storage_size")] = errors.Wrap(invalidEphemeralStorage, o.currentService)
 	}
 }
 

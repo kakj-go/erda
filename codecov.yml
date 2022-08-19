@@ -1,12 +1,14 @@
 codecov:
-  require_ci_to_pass: yes
+  require_ci_to_pass: false
+  notify:
+    wait_for_ci: false
 
-comment:                  # this is a top-level key
+comment: # this is a top-level key
   layout: "reach, diff, flags, files"
   behavior: default
-  require_changes: false  # if true: only post the comment if coverage changes
-  require_base: no        # [yes :: must have a base report to post]
-  require_head: yes       # [yes :: must have a head report to post]
+  require_changes: false   # if true: only post the comment if coverage changes
+  require_base: false      # [yes :: must have a base report to post]
+  require_head: false      # [yes :: must have a head report to post]
 #  branches:               # branch names that can post comment
 
 coverage:
@@ -37,8 +39,11 @@ github_checks:
 
 ignore:
   # ignore the boilerplate code
-  - "modules/*/conf"
-  - "modules/*/dbclient"
-  - "modules/*/dao"
+  - "internal/**/conf"
+  - "internal/**/dbclient"
+  - "internal/**/dao"
   - "bundle"
   - "api/proto-go"
+  - "internal/tools/openapi/legacy/api/apis/**/*.go"
+  - "**/*_mock.go"
+  - "internal/**/openapi/legacy/api/apis/**/*.go"

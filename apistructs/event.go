@@ -117,16 +117,17 @@ type GroupNotifyEvent struct {
 }
 
 type GroupNotifyContent struct {
-	SourceName            string               `json:"sourceName"`
-	SourceType            string               `json:"sourceType"`
-	SourceID              string               `json:"sourceId"`
-	NotifyName            string               `json:"notifyName"`
-	NotifyItemDisplayName string               `json:"notifyItemDisplayName"`
-	Channels              []GroupNotifyChannel `json:"channels"`
-	OrgID                 int64                `json:"orgId"`
-	Label                 string               `json:"label"`
-	ClusterName           string               `json:"clusterName"`
-	CalledShowNumber      string               `json:"calledShowNumber"`
+	SourceName            string                 `json:"sourceName"`
+	SourceType            string                 `json:"sourceType"`
+	SourceID              string                 `json:"sourceId"`
+	NotifyName            string                 `json:"notifyName"`
+	NotifyItemDisplayName string                 `json:"notifyItemDisplayName"`
+	Channels              []GroupNotifyChannel   `json:"channels"`
+	OrgID                 int64                  `json:"orgId"`
+	NotifyTags            map[string]interface{} `json:"notifyTags"`
+	Label                 string                 `json:"label"`
+	ClusterName           string                 `json:"clusterName"`
+	CalledShowNumber      string                 `json:"calledShowNumber"`
 }
 
 type GroupNotifyChannel struct {
@@ -177,8 +178,10 @@ type IssueEventData struct {
 	AtUserIDs    string            `json:"atUserIds"`
 	Receivers    []string          `json:"receivers"`
 	IssueType    IssueType         `json:"issueType"`
+	StreamTypes  []IssueStreamType `json:"streamTypes"`
 	StreamType   IssueStreamType   `json:"streamType"`
 	StreamParams ISTParam          `json:"streamParams"`
+	Participants []string          `json:"participants"`
 	Params       map[string]string `json:"params"`
 }
 
@@ -206,6 +209,11 @@ func (ie *IssueEvent) GenEventParams(locale, uiPublicURL string) map[string]stri
 
 	params["issueEmailLink"] = fmt.Sprintf("%s?id=%s&type=%s", params["projectEmailLink"],
 		params["issueID"], params["issueType"])
+
+	if ie.Content.IssueType == IssueTypeTicket {
+		params["issueEmailLink"] = fmt.Sprintf("%s/%s/dop/projects/%s/ticket?id=%s&pageNo=1",
+			uiPublicURL, params["orgName"], ie.EventHeader.ProjectID, params["issueID"])
+	}
 
 	params["mboxDeduplicateID"] = fmt.Sprintf("issue-%s", params["issueID"])
 
@@ -241,4 +249,9 @@ type GittarPushPayloadEvent struct {
 			Email    string `json:"email"`
 		} `json:"pusher"`
 	} `json:"content"`
+}
+
+type ClusterManagerClientEvent struct {
+	EventHeader
+	Content ClusterManagerClientDetail `json:"content"`
 }

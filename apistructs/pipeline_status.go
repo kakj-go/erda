@@ -19,7 +19,8 @@ import "fmt"
 // PipelineStatus 表示流水线或任务状态
 type PipelineStatus string
 
-// PipelineStatusDesc 包装状态和简单描述
+// PipelineStatusDesc action status and simple description
+// desc is an optional filed that describes the reason for the failure and should be empty on success
 type PipelineStatusDesc struct {
 	Status PipelineStatus `json:"status"`
 	Desc   string         `json:"desc"`
@@ -79,6 +80,13 @@ var PipelineEndStatuses = []PipelineStatus{
 	PipelineStatusSuccess, PipelineStatusAnalyzeFailed, PipelineStatusFailed, PipelineStatusTimeout,
 	PipelineStatusStopByUser, PipelineStatusNoNeedBySystem, PipelineStatusCreateError, PipelineStatusStartError, PipelineStatusDBError,
 	PipelineStatusError, PipelineStatusUnknown, PipelineStatusLostConn, PipelineStatusCancelByRemote,
+}
+
+var PipelineAllStatuses = []PipelineStatus{
+	PipelineStatusAnalyzed, PipelineStatusBorn, PipelineStatusCreated, PipelineStatusMark, PipelineStatusQueue, PipelineStatusRunning, PipelineStatusSuccess,
+	PipelineStatusFailed, PipelineStatusAnalyzeFailed, PipelineStatusPaused, PipelineStatusCreateError, PipelineStatusStartError, PipelineStatusTimeout,
+	PipelineStatusStopByUser, PipelineStatusNoNeedBySystem, PipelineStatusCancelByRemote, PipelineStatusInitializing, PipelineStatusError, PipelineStatusUnknown, PipelineStatusDBError, PipelineStatusLostConn,
+	PipelineStatusDisabled, PipelineStatusWaitApproval, PipelineStatusApprovalSuccess, PipelineStatusApprovalFail,
 }
 
 func (status PipelineStatus) ToDesc() string {
@@ -151,7 +159,7 @@ func (status PipelineStatus) IsReconcilerRunningStatus() bool {
 
 func (status PipelineStatus) IsBeforePressRunButton() bool {
 	switch status {
-	case PipelineStatusInitializing, PipelineStatusAnalyzed, PipelineStatusAnalyzeFailed:
+	case PipelineStatusInitializing, PipelineStatusAnalyzed:
 		return true
 	default:
 		return false
@@ -187,6 +195,10 @@ func (status PipelineStatus) CanUnpause() bool {
 	return status == PipelineStatusPaused
 }
 
+func (status PipelineStatus) IsEmpty() bool {
+	return status == PipelineEmptyStatus
+}
+
 func (status PipelineStatus) IsEndStatus() bool {
 	return status.IsSuccessStatus() || status.IsFailedStatus()
 }
@@ -197,6 +209,10 @@ func (status PipelineStatus) IsSuccessStatus() bool {
 
 func (status PipelineStatus) IsRunningStatus() bool {
 	return status == PipelineStatusRunning
+}
+
+func (status PipelineStatus) InQueue() bool {
+	return status == PipelineStatusQueue
 }
 
 func (status PipelineStatus) CanDelete() bool {
@@ -235,6 +251,18 @@ func (status PipelineStatus) IsAbnormalFailedStatus() bool {
 	}
 }
 
+func (status PipelineStatus) IsDisabledStatus() bool {
+	return status == PipelineStatusDisabled
+}
+
+func (status PipelineStatus) IsStopByUser() bool {
+	return status == PipelineStatusStopByUser
+}
+
+func (status PipelineStatus) IsNoNeedBySystem() bool {
+	return status == PipelineStatusNoNeedBySystem
+}
+
 func (status PipelineStatus) IsFailedStatus() bool {
 	return status.IsNormalFailedStatus() || status.IsAbnormalFailedStatus()
 }
@@ -254,4 +282,8 @@ func (status PipelineStatus) ChangeStateForManualReview() PipelineStatus {
 
 func (status PipelineStatus) AfterPipelineQueue() bool {
 	return status == PipelineStatusRunning || status.IsEndStatus()
+}
+
+func (status PipelineStatus) IsShouldSkipLoop() bool {
+	return !status.IsEndStatus() || status.IsStopByUser()
 }

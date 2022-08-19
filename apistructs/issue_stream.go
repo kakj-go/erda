@@ -68,10 +68,11 @@ func (ist IssueStreamType) GetEventAction() string {
 
 // IssueStreamCreateRequest 事件流创建请求
 type IssueStreamCreateRequest struct {
-	IssueID      int64           `json:"issueID"`
-	Operator     string          `json:"operator"`
-	StreamType   IssueStreamType `json:"streamType"`
-	StreamParams ISTParam        `json:"streamParams"`
+	IssueID      int64             `json:"issueID"`
+	Operator     string            `json:"operator"`
+	StreamType   IssueStreamType   `json:"streamType"`
+	StreamParams ISTParam          `json:"streamParams"`
+	StreamTypes  []IssueStreamType `json:"streamTypes"`
 
 	// internal use, get from *http.Request
 	IdentityInfo
@@ -120,3 +121,5 @@ type IssueCommentTestCaseInfo struct {
 	TestCaseID   uint64 `json:"testCaseID"`
 	TestCaseName string `json:"testCaseName"`
 }
+
+const SystemOperator = "system"

@@ -137,7 +137,7 @@ func testAllPackages(base string) error {
 		if !codeFileExts[ext] {
 			return nil
 		}
-		if strings.HasSuffix(path, "_test.go") {
+		if strings.HasSuffix(path, "_test.go") || strings.HasSuffix(path, "_mock.go") {
 			pkgi.hasTestFile = true
 		}
 		pkgi.files = append(pkgi.files, &fileInfo{
@@ -386,8 +386,9 @@ func runTest(file string) (profiles []*cover.Profile, err error) {
 			os.Remove(coverage)
 		}()
 	}
-	args := append([]string{"test", "-tags=musl", "-work", "-cpu=2", "-timeout=30s", "-failfast", "-race", "-coverprofile=" + coverage, "-covermode=atomic"})
+	args := append([]string{"test", "-gcflags=-l", "-work", "-cpu=2", "-timeout=30s", "-failfast", "-race", "-coverprofile=" + coverage, "-covermode=atomic"})
 	args = append(args, []string{"-ldflags", "-X google.golang.org/protobuf/reflect/protoregistry.conflictPolicy=warn"}...)
+	args = append(args, []string{"-gcflags", "-N -l"}...)
 	args = append(args, file)
 	fmt.Printf("exec: go %s\n", strings.Join(args, " "))
 	cmd := exec.Command("go", args...)

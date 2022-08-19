@@ -1,0 +1,86 @@
+// Copyright (c) 2021 Terminus, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package flow
+
+import (
+	"gorm.io/gorm"
+
+	logs "github.com/erda-project/erda-infra/base/logs"
+	servicehub "github.com/erda-project/erda-infra/base/servicehub"
+	transport "github.com/erda-project/erda-infra/pkg/transport"
+	"github.com/erda-project/erda-infra/providers/i18n"
+	pb "github.com/erda-project/erda-proto-go/apps/devflow/flow/pb"
+	rulepb "github.com/erda-project/erda-proto-go/dop/rule/pb"
+	"github.com/erda-project/erda/bundle"
+	"github.com/erda-project/erda/internal/apps/devflow/flow/db"
+	"github.com/erda-project/erda/internal/apps/dop/providers/devflowrule"
+	"github.com/erda-project/erda/internal/apps/dop/providers/issue/core/query"
+	"github.com/erda-project/erda/pkg/common/apis"
+)
+
+type config struct{}
+
+// +provider
+type provider struct {
+	Cfg      *config
+	Log      logs.Logger
+	Register transport.Register
+	Trans    i18n.Translator `translator:"common" required:"true"`
+	DB       *gorm.DB        `autowired:"mysql-gorm.v2-client"`
+	dbClient *db.Client
+
+	devFlowService *Service
+	DevFlowRule    devflowrule.Interface
+	bdl            *bundle.Bundle
+	Issue          query.Interface
+	RuleExecutor   rulepb.RuleServiceServer
+}
+
+func (p *provider) Init(ctx servicehub.Context) error {
+	p.bdl = bundle.New(bundle.WithAllAvailableClients())
+
+	service := &Service{}
+	service.p = p
+	p.devFlowService = service
+	p.dbClient = &db.Client{DB: p.DB}
+
+	if p.Register != nil {
+		pb.RegisterFlowServiceImp(p.Register, p.devFlowService, apis.Options())
+	}
+	return nil
+}
+
+func (p *provider) Provide(ctx servicehub.DependencyContext, args ...interface{}) interface{} {
+	switch {
+	case ctx.Service() == "erda.apps.devflow.flow.FlowService" || ctx.Type() == pb.FlowServiceServerType() || ctx.Type() == pb.FlowServiceHandlerType():
+		return p.devFlowService
+	}
+	return p
+}
+
+func init() {
+	servicehub.Register("erda.apps.devflow.flow", &servicehub.Spec{
+		Services:             pb.ServiceNames(),
+		Types:                pb.Types(),
+		OptionalDependencies: []string{"service-register"},
+		Description:          "",
+		ConfigFunc: func() interface{} {
+			return &config{}
+		},
+		Creator: func() servicehub.Provider {
+			return &provider{}
+		},
+	})
+}

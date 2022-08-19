@@ -75,6 +75,11 @@ type OrgSearchRequest struct {
 	PageNo   int `query:"pageNo"`
 	PageSize int `query:"pageSize"`
 
+	// The header passed by the org front end is used as the admin account to distinguish the management interface and the user interface
+	// In the case of the user interface, the front end will pass org
+	// The management interface admin needs all org so pass-
+	// The backend determines whether the admin account queries all orgs according to whether org has a value
+	Org string `query:"org"`
 	IdentityInfo
 }
 
@@ -186,6 +191,13 @@ type OrgDTO struct {
 	Version   int       `json:"version"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+
+	AuditMessage AuditMessage `json:"auditMessage"`
+}
+
+type AuditMessage struct {
+	MessageZH string `json:"messageZH"`
+	MessageEN string `json:"messageEN"`
 }
 
 func (org *OrgDTO) HidePassword() {
@@ -353,6 +365,73 @@ type OrgResourceInfo struct {
 	TotalMem     float64 `json:"totalMem"`
 	AvailableCpu float64 `json:"availableCpu"`
 	AvailableMem float64 `json:"availableMem"`
+}
+
+type OrgClustersResourcesInfo struct {
+	Header
+	// deprecated:
+	AvailableCPU float64 `json:"available_cpu"`
+	// deprecated:
+	AvailableMem float64 `json:"available_mem"`
+	// deprecated:
+	TotalCPU float64 `json:"total_cpu"`
+	// deprecated:
+	TotalMem float64 `json:"total_mem"`
+
+	ClusterList []*ClusterResources `json:"clusterList"`
+}
+
+type OrgClustersResourcesResp struct {
+	Header
+	Quotas []QuotaData
+}
+
+type QuotaData struct {
+	ClusterName string
+	Principal   string
+	Project     string
+	MemoryQuota float64
+	CPUQuota    float64
+}
+
+type OrgClustersResourcesReq struct {
+	Header
+	OrgID          string
+	ClusterNames   []string
+	PrincipalNames []string
+	ProjectNames   []string
+}
+
+type OrgClustersNamespaceResp struct {
+	Header
+	Namespaces []string
+}
+
+type OrgClustersNamespaceReq struct {
+	Header
+	OrgID       string
+	ClusterName []string
+}
+
+type ClusterResources struct {
+	ClusterName    string  `json:"clusterName"`
+	Workspace      string  `json:"workspace"`
+	CPUAllocatable float64 `json:"cpuAllocatable"`
+	// CPUAvailable = CPUAllocatable - CPURequest
+	CPUAvailable   float64 `json:"cpuAvailable"`
+	CPUQuotaRate   float64 `json:"cpuQuotaRate"`
+	CPURequest     float64 `json:"cpuRequest"`
+	MemAllocatable float64 `json:"memAllocatable"`
+	// MemAvailable = MemAllocatable - MemRequest
+	MemAvailable float64 `json:"memAvailable"`
+	MemQuotaRate float64 `json:"memQuotaRate"`
+	MemRequest   float64 `json:"memRequest"`
+	// Nodes is nums of nodes
+	Nodes int `json:"nodes"`
+	// Tips is the tip for the cluster
+	Tips      string  `json:"tips"`
+	CPUTookUp float64 `json:"cpuTookUp"`
+	MemTookUp float64 `json:"memTookUp"`
 }
 
 type OrgNexusGetRequest struct {

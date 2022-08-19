@@ -87,6 +87,9 @@ const (
 	AddonDeleted string = "Y"
 	//AddonNotDeleted addon逻辑删除，否
 	AddonNotDeleted string = "N"
+	//AddonScaleDown addon 停止逻辑，表示可以ScaleDown 停止 addon
+	//addon 的 tb_addon_attachment 中 is_deleted 的 中间状态，表示 Runtime 已停止未删除
+	AddonScaleDown string = "S"
 )
 
 // Addon通用配置
@@ -315,6 +318,10 @@ const (
 	AddonCloudOss = "alicloud-oss"
 	// alicloud-gateway
 	AddonCloudGateway = "alicloud-gateway"
+	// sourcecov code coverage agent
+	AddonSourcecov = "sourcecov"
+
+	OriginalReplicas = "original_replicas"
 )
 
 // AddonRes addon信息
@@ -551,6 +558,8 @@ type AddonFetchResponseData struct {
 	CustomAddonType string `json:"customAddonType"`
 	// TenantOwner addon 租户owner的 instancerouting id
 	TenantOwner string `json:"tenantOwner"`
+	// IsInsideAddon addon 是否是 inside addon（如 kafka addon 中的 inside addon 是 zookeeper addon）
+	IsInsideAddon string `json:"isInsideAddon`
 }
 
 // ReferenceInfo 引用信息
@@ -708,6 +717,7 @@ type MicroServiceProjectResponse struct {
 type MicroServiceProjectResponseData struct {
 	ProjectID    string            `json:"projectId"`
 	ProjectName  string            `json:"projectName"`
+	ProjectDesc  string            `json:"projectDesc"`
 	LogoURL      string            `json:"logoUrl"`
 	Envs         []string          `json:"envs"`
 	TenantGroups []string          `json:"tenantGroups"`
@@ -902,7 +912,7 @@ type AddonCreateOptions struct {
 	RuntimeName string `json:"runtimeName"`
 
 	// 发布ID
-	DeploymentID string `json:"deploymentId,string"`
+	DeploymentID string `json:"deploymentId"`
 
 	// 日志类型
 	LogSource string `json:"logSource"`
@@ -914,6 +924,7 @@ type AddonCreateOptions struct {
 // AddonCreateResponse 申请 Addon 相应
 type AddonCreateResponse struct {
 	Header
+	Data string `json:"data"`
 }
 
 // CustomAddonCreateRequest 自定义 addon 创建请求
@@ -1039,6 +1050,10 @@ type AddonPlanItem struct {
 	CPU float64 `json:"cpu"`
 	// Mem 内存大小
 	Mem int `json:"mem"`
+
+	MaxCPU float64 `json:"max_cpu"`
+	MaxMem int     `json:"max_mem"`
+
 	// Nodes 节点数量
 	Nodes int `json:"nodes"`
 	// 内部组件依赖信息，如果有，则用内部组件的信息
@@ -1166,6 +1181,7 @@ type CreateSingleAddonResponse struct {
 type AddonCreateCallBackResponse struct {
 	IsSuccess bool              `json:"isSuccess"`
 	Options   map[string]string `json:"options"`
+	ErrMsg    string            `json:"errMsg"`
 }
 
 // AddonConfigCallBackResponse addon配置回调

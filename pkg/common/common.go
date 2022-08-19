@@ -21,9 +21,14 @@ import (
 
 	"github.com/recallsong/go-utils/config"
 	uuid "github.com/satori/go.uuid"
+	"github.com/sirupsen/logrus"
 
 	"github.com/erda-project/erda-infra/base/servicehub"
 	"github.com/erda-project/erda-infra/base/version"
+	"github.com/erda-project/erda-infra/pkg/mysqldriver"
+	"github.com/erda-project/erda/pkg/common/entrance"
+	"github.com/erda-project/erda/pkg/common/trace"
+	_ "github.com/erda-project/erda/pkg/common/trace" // nolint
 )
 
 var instanceID = uuid.NewV4().String()
@@ -50,11 +55,33 @@ func loadModuleEnvFile(dir string) {
 	config.LoadEnvFileWithPath(path, false)
 }
 
+func loadRootEnvFile() {
+	loadModuleEnvFile("")
+}
+
 func prepare() {
+	trace.Init()
+	openMysqlTLS()
 	version.PrintIfCommand()
 	Env()
 	for _, fn := range initializers {
 		fn()
+	}
+}
+
+func setCwd() {
+	modulePath := entrance.GetModulePath()
+	wd := filepath.Join("cmd", modulePath)
+	logrus.Infof("change working directory to: %s", wd)
+	if err := os.Chdir(wd); err != nil {
+		logrus.Fatalf("failed to change working directory to %s, err: %v", wd, err)
+	}
+}
+
+func openMysqlTLS() {
+	err := mysqldriver.OpenTLS(os.Getenv("MYSQL_TLS"), os.Getenv("MYSQL_CACERTPATH"), os.Getenv("MYSQL_CLIENTCERTPATH"), os.Getenv("MYSQL_CLIENTKEYPATH"))
+	if err != nil {
+		logrus.Errorf("register tls error %v", err)
 	}
 }
 
@@ -85,9 +112,12 @@ func newHub() *servicehub.Hub {
 
 // Run .
 func Run(opts *servicehub.RunOptions) {
+	// load .env before change cwd
+	loadRootEnvFile()
+	setCwd()
 	prepare()
 	opts.Name = GetEnv("CONFIG_NAME", opts.Name)
-	cfg := opts.ConfigFile
+	cfg := GetEnv("CONFIG_FILE", opts.ConfigFile)
 	if len(cfg) <= 0 && len(opts.Name) > 0 {
 		cfg = opts.Name + ".yaml"
 	}

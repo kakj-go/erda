@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +51,7 @@ type Issue struct {
 	IssueButton      []IssueStateButton `json:"issueButton"` // 状态流转按钮
 	IssueSummary     *IssueSummary      `json:"issueSummary"`
 	Labels           []string           `json:"labels"` // label 列表
+	LabelDetails     []ProjectLabel     `json:"labelDetails,omitempty"`
 	ManHour          IssueManHour       `json:"issueManHour"`
 	Source           string             `json:"source"`
 	TaskType         string             `json:"taskType"` // 任务类型
@@ -62,6 +64,7 @@ type Issue struct {
 
 	TestPlanCaseRels []TestPlanCaseRel `json:"testPlanCaseRels"`
 	relatedIssueIDs  []uint64
+	ReopenCount      int
 }
 
 // GetStage 获取任务状态或者Bug阶段
@@ -88,12 +91,17 @@ func (s *Issue) SetRelatedIssueIDs(ids string) error {
 		return nil
 	}
 	idStrs := strings.Split(ids, ",")
+	dp := map[uint64]bool{}
 	relatedIssueIDs := make([]uint64, 0)
 	for _, id := range idStrs {
 		issueID, err := strconv.Atoi(id)
 		if err != nil {
 			return err
 		}
+		if dp[uint64(issueID)] {
+			continue
+		}
+		dp[uint64(issueID)] = true
 		relatedIssueIDs = append(relatedIssueIDs, uint64(issueID))
 	}
 	s.relatedIssueIDs = relatedIssueIDs
@@ -170,21 +178,6 @@ func (t IssueType) GetCorrespondingResource() string {
 	default:
 		panic(fmt.Sprintf("invalid issue type: %s", string(t)))
 	}
-}
-func (t IssueType) GetStateBelongIndex() []IssueStateBelong {
-	switch t {
-	case IssueTypeRequirement:
-		return []IssueStateBelong{IssueStateBelongOpen, IssueStateBelongWorking, IssueStateBelongDone}
-	case IssueTypeTask:
-		return []IssueStateBelong{IssueStateBelongOpen, IssueStateBelongWorking, IssueStateBelongDone}
-	case IssueTypeEpic:
-		return []IssueStateBelong{IssueStateBelongOpen, IssueStateBelongWorking, IssueStateBelongDone}
-	case IssueTypeBug:
-		return []IssueStateBelong{IssueStateBelongOpen, IssueStateBelongWontfix, IssueStateBelongReopen, IssueStateBelongResloved, IssueStateBelongClosed}
-	default:
-		panic(fmt.Sprintf("invalid issue type: %s", string(t)))
-	}
-
 }
 
 type IssueState string // 事件状态
@@ -364,6 +357,17 @@ func (i IssuePriority) GetZhName() string {
 	}
 }
 
+func IssueStreamPriorityName(priority, locale string) string {
+	if len(priority) == 0 {
+		return ""
+	}
+	c := IssuePriorityUrgent.GetEnName(priority)
+	if strings.Contains(locale, "en") {
+		return strings.ToLower(string(c))
+	}
+	return c.GetZhName()
+}
+
 // IssueComplexity 事件复杂度
 type IssueComplexity string
 
@@ -396,6 +400,17 @@ func (is IssueComplexity) GetZhName() string {
 	default:
 		panic(fmt.Sprintf("invalid issue complexity: %s", is))
 	}
+}
+
+func IssueStreamComplexityName(complexity, locale string) string {
+	if len(complexity) == 0 {
+		return ""
+	}
+	c := IssueComplexityHard.GetEnName(complexity)
+	if strings.Contains(locale, "en") {
+		return strings.ToLower(string(c))
+	}
+	return c.GetZhName()
 }
 
 // IssueSeverity 事件严重程度
@@ -443,6 +458,24 @@ func (is IssueSeverity) GetZhName() string {
 	}
 }
 
+func (is IssueSeverity) GetI18nKeyAlias() string {
+	if is == IssueSeverityNormal {
+		return "ordinary"
+	}
+	return strings.ToLower(string(is))
+}
+
+func IssueStreamSeverityName(severity, locale string) string {
+	if len(severity) == 0 {
+		return ""
+	}
+	c := IssueSeverityFatal.GetEnName(severity)
+	if strings.Contains(locale, "en") {
+		return strings.ToLower(string(c))
+	}
+	return c.GetZhName()
+}
+
 var IssueSeveritys = []IssueSeverity{IssueSeverityFatal, IssueSeveritySerious, IssueSeverityNormal, IssueSeveritySlight, IssueSeverityLow}
 
 // IssueButton 状态流转按钮
@@ -481,6 +514,39 @@ func (imh *IssueManHour) Convert2String() string {
 	mh, _ := json.Marshal(*imh)
 
 	return string(mh)
+}
+
+var estimateRegexp, _ = regexp.Compile("^[0-9]+[wdhm]+$")
+
+func NewManhour(manhour string) (IssueManHour, error) {
+	if manhour == "" {
+		return IssueManHour{}, nil
+	}
+	if !estimateRegexp.MatchString(manhour) {
+		return IssueManHour{}, fmt.Errorf("invalid estimate time: %s", manhour)
+	}
+	timeType := manhour[len(manhour)-1]
+	timeSet := manhour[:len(manhour)-1]
+	timeVal, err := strconv.ParseUint(timeSet, 10, 64)
+	if err != nil {
+		return IssueManHour{}, fmt.Errorf("invalid man hour: %s, err: %v", manhour, err)
+	}
+	switch timeType {
+	case 'm':
+		val := int64(timeVal)
+		return IssueManHour{EstimateTime: val, RemainingTime: val}, nil
+	case 'h':
+		val := int64(timeVal) * 60
+		return IssueManHour{EstimateTime: val, RemainingTime: val}, nil
+	case 'd':
+		val := int64(timeVal) * 60 * 8
+		return IssueManHour{EstimateTime: val, RemainingTime: val}, nil
+	case 'w':
+		val := int64(timeVal) * 60 * 8 * 5
+		return IssueManHour{EstimateTime: val, RemainingTime: val}, nil
+	default:
+		return IssueManHour{}, fmt.Errorf("invalid man hour: %s", manhour)
+	}
 }
 
 // Clean get,list事件返回时 开始时间，工作内容都需要为空
@@ -537,9 +603,9 @@ func formartTime(minutes int64, result *bytes.Buffer) {
 // IssueCreateRequest 事件创建请求
 type IssueCreateRequest struct {
 	// +optional 计划开始时间
-	PlanStartedAt *time.Time `json:"planStartedAt"`
+	PlanStartedAt IssueTime `json:"planStartedAt"`
 	// +optional 计划结束时间
-	PlanFinishedAt *time.Time `json:"planFinishedAt"`
+	PlanFinishedAt IssueTime `json:"planFinishedAt"`
 	// +required 所属项目 ID
 	ProjectID uint64 `json:"projectID"`
 	// +required 所属迭代 ID
@@ -635,7 +701,8 @@ func (ipr *IssuePagingRequest) GetUserIDs() []string {
 // IssueExportExcelRequest 事件导出 excel 请求
 type IssueExportExcelRequest struct {
 	IssuePagingRequest
-	IsDownload bool `json:"isDownload"`
+	Locale     string `json:"locale"`
+	IsDownload bool   `json:"isDownload"`
 }
 
 // IssueImportExcelRequest 事件导入excel请求
@@ -643,6 +710,7 @@ type IssueImportExcelRequest struct {
 	ProjectID uint64            `json:"projectID"`
 	OrgID     int64             `json:"orgID"`
 	Type      PropertyIssueType `json:"type"`
+	FileID    string            `json:"fileID"`
 	IdentityInfo
 }
 
@@ -716,11 +784,13 @@ type IssueListRequest struct {
 	// internal use, get from *http.Request
 	IdentityInfo
 	// 用来区分是通过ui还是bundle创建的
-	External bool `json:"-"`
+	External bool `json:"external"`
 	// Optional custom panel id for issues
 	CustomPanelID int64 `json:"customPanelID"`
 
 	OnlyIDResult bool `json:"onlyIdResult"`
+	// issues not included by others
+	NotIncluded bool `json:"notIncluded"`
 }
 
 func (ipr *IssuePagingRequest) UrlQueryString() map[string][]string {
@@ -740,9 +810,7 @@ func (ipr *IssuePagingRequest) UrlQueryString() map[string][]string {
 		query["iterationID"] = []string{strconv.FormatInt(ipr.IterationID, 10)}
 	}
 	for _, v := range ipr.IterationIDs {
-		if v > 0 {
-			query["iterationIDs"] = append(query["iterationIDs"], strconv.FormatInt(v, 10))
-		}
+		query["iterationIDs"] = append(query["iterationIDs"], strconv.FormatInt(v, 10))
 	}
 	if ipr.AppID != nil {
 		query["appID"] = []string{strconv.FormatInt(int64(*ipr.AppID), 10)}
@@ -851,24 +919,73 @@ type IssueGetResponse struct {
 	Data *Issue `json:"data"`
 }
 
+type IssueTime time.Time
+
+func (m *IssueTime) UnmarshalJSON(data []byte) error {
+	s := string(data)
+	if s == "null" {
+		return nil
+	}
+	if s == `""` {
+		*m = IssueTime(time.Unix(0, 0))
+		return nil
+	}
+	return json.Unmarshal(data, (*time.Time)(m))
+}
+
+func (m *IssueTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal((*time.Time)(m))
+}
+
+func (m *IssueTime) IsEmpty() bool {
+	if m == nil {
+		return true
+	}
+	t := time.Time(*m)
+	return t.IsZero()
+}
+
+func (m *IssueTime) Value() *time.Time {
+	if m == nil {
+		return nil
+	}
+	t := time.Time(*m)
+	if t.IsZero() || t.Equal(time.Unix(0, 0)) {
+		return nil
+	}
+	return &t
+}
+
+func (m *IssueTime) Time() *time.Time {
+	if m == nil {
+		return nil
+	}
+	t := time.Time(*m)
+	if t.Equal(time.Unix(0, 0)) {
+		return nil
+	}
+	return &t
+}
+
 // IssueUpdateRequest 事件更新请求
 type IssueUpdateRequest struct {
-	Title          *string          `json:"title"`
-	Content        *string          `json:"content"`
-	State          *int64           `json:"state"`
-	Priority       *IssuePriority   `json:"priority"`
-	Complexity     *IssueComplexity `json:"complexity"`
-	Severity       *IssueSeverity   `json:"severity"`
-	PlanStartedAt  *time.Time       `json:"planStartedAt"`
-	PlanFinishedAt *time.Time       `json:"planFinishedAt"`
-	Assignee       *string          `json:"assignee"`
-	IterationID    *int64           `json:"iterationID"`
-	Source         *string          `json:"source"`        // 来源
-	Labels         []string         `json:"labels"`        // label 名称列表
-	RelatedIssues  []int64          `json:"relatedIssues"` // 已关联的issue
-	TaskType       *string          `json:"taskType"`      // 任务类型
-	BugStage       *string          `json:"bugStage"`      // bug阶段
-	Owner          *string          `json:"owner"`         // 负责人
+	Title                 *string          `json:"title"`
+	Content               *string          `json:"content"`
+	State                 *int64           `json:"state"`
+	Priority              *IssuePriority   `json:"priority"`
+	Complexity            *IssueComplexity `json:"complexity"`
+	Severity              *IssueSeverity   `json:"severity"`
+	PlanStartedAt         IssueTime        `json:"planStartedAt"`
+	PlanFinishedAt        IssueTime        `json:"planFinishedAt"`
+	Assignee              *string          `json:"assignee"`
+	IterationID           *int64           `json:"iterationID"`
+	Source                *string          `json:"source"`        // 来源
+	Labels                []string         `json:"labels"`        // label 名称列表
+	RelatedIssues         []int64          `json:"relatedIssues"` // 已关联的issue
+	TaskType              *string          `json:"taskType"`      // 任务类型
+	BugStage              *string          `json:"bugStage"`      // bug阶段
+	Owner                 *string          `json:"owner"`         // 负责人
+	WithChildrenIteration bool             `json:"withChildrenIteration"`
 	//工时信息，当事件类型为任务和缺陷时生效
 	ManHour *IssueManHour `json:"issueManHour"`
 
@@ -886,7 +1003,7 @@ type IssueUpdateRequest struct {
 func (r *IssueUpdateRequest) IsEmpty() bool {
 	return r.Title == nil && r.Content == nil && r.State == nil &&
 		r.Priority == nil && r.Complexity == nil && r.Severity == nil &&
-		r.PlanStartedAt == nil && r.PlanFinishedAt == nil &&
+		r.PlanStartedAt.IsEmpty() && r.PlanFinishedAt.IsEmpty() &&
 		r.Assignee == nil && r.IterationID == nil && r.ManHour == nil
 }
 
@@ -912,7 +1029,12 @@ func (r *IssueUpdateRequest) GetChangedFields(manHour string) map[string]interfa
 	if r.Severity != nil {
 		fields["severity"] = *r.Severity
 	}
-	fields["plan_finished_at"] = r.PlanFinishedAt
+	if !r.PlanStartedAt.IsEmpty() {
+		fields["plan_started_at"] = r.PlanStartedAt.Time()
+	}
+	if !r.PlanFinishedAt.IsEmpty() {
+		fields["plan_finished_at"] = r.PlanFinishedAt.Time()
+	}
 	if r.Assignee != nil {
 		fields["assignee"] = *r.Assignee
 	}
@@ -932,12 +1054,12 @@ func (r *IssueUpdateRequest) GetChangedFields(manHour string) map[string]interfa
 		fields["stage"] = *r.TaskType
 	}
 	if r.ManHour != nil {
-		if r.ManHour.ThisElapsedTime != 0 {
-			// 开始时间为当天0点
-			timeStr := time.Now().Format("2006-01-02")
-			t, _ := time.ParseInLocation("2006-01-02", timeStr, time.Local)
-			fields["plan_started_at"] = t
-		}
+		// if r.ManHour.ThisElapsedTime != 0 {
+		// 	// 开始时间为当天0点
+		// 	timeStr := time.Now().Format("2006-01-02")
+		// 	t, _ := time.ParseInLocation("2006-01-02", timeStr, time.Local)
+		// 	fields["plan_started_at"] = t
+		// }
 		// ManHour 是否改变提前特殊处理
 		// 只有当预期时间或剩余时间发生改变时，才认为工时信息发生了改变
 		// 所花时间，开始时间，工作内容是实时内容，只在事件动态里记录就好，在dice_issue表中是没有意义的数据
@@ -954,7 +1076,6 @@ func (r *IssueUpdateRequest) GetChangedFields(manHour string) map[string]interfa
 			fields["man_hour"] = r.ManHour.Convert2String()
 		}
 	}
-
 	return fields
 }
 

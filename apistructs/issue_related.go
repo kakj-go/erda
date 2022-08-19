@@ -17,11 +17,15 @@ package apistructs
 import "github.com/pkg/errors"
 
 type IssueRelationCreateRequest struct {
-	IssueID      uint64 `json:"-"`
-	RelatedIssue uint64 `json:"relatedIssues"`
-	Comment      string `json:"comment"`
-	ProjectID    int64  `json:"projectId"`
+	IssueID      uint64   `json:"-"`
+	RelatedIssue []uint64 `json:"relatedIssues"`
+	Comment      string   `json:"comment"`
+	ProjectID    int64    `json:"projectId"`
+	Type         string   `json:"type"`
 }
+
+const IssueRelationConnection = "connection"
+const IssueRelationInclusion = "inclusion"
 
 // Check 检查请求参数是否合法
 func (irc *IssueRelationCreateRequest) Check() error {
@@ -29,12 +33,26 @@ func (irc *IssueRelationCreateRequest) Check() error {
 		return errors.New("issueId is required")
 	}
 
-	if irc.RelatedIssue == 0 {
+	if len(irc.RelatedIssue) == 0 {
 		return errors.New("relatedIssue is required")
 	}
 
 	if irc.ProjectID == 0 {
 		return errors.New("projectId is required")
+	}
+
+	if len(irc.Type) == 0 {
+		return errors.New("type is required")
+	}
+
+	if irc.Type != IssueRelationConnection && irc.Type != IssueRelationInclusion {
+		return errors.New("invalid issue relation type")
+	}
+
+	for _, i := range irc.RelatedIssue {
+		if i == irc.IssueID {
+			return errors.New("can not connect yourself")
+		}
 	}
 
 	return nil
@@ -49,6 +67,12 @@ type IssueRelationGetResponse struct {
 
 // IssueRelations 事件关联关系
 type IssueRelations struct {
-	RelatingIssues []Issue
-	RelatedIssues  []Issue
+	IssueRelate   []Issue `json:"relatedTo"`
+	IssueRelated  []Issue `json:"relatedBy"`
+	IssueInclude  []Issue `json:"include"`
+	IssueIncluded []Issue `json:"beIncluded"`
+}
+
+type IssueRelationRequest struct {
+	RelationTypes []string `schema:"type"`
 }

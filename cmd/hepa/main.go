@@ -15,28 +15,37 @@
 package main
 
 import (
+	_ "embed"
+
 	"github.com/erda-project/erda-infra/base/servicehub"
 	"github.com/erda-project/erda/pkg/common"
 
 	// providers and modules
 	_ "github.com/erda-project/erda-infra/providers"
-	_ "github.com/erda-project/erda/modules/hepa"
-	_ "github.com/erda-project/erda/modules/hepa/providers/api_policy"
-	_ "github.com/erda-project/erda/modules/hepa/providers/domain"
-	_ "github.com/erda-project/erda/modules/hepa/providers/endpoint_api"
-	_ "github.com/erda-project/erda/modules/hepa/providers/global"
-	_ "github.com/erda-project/erda/modules/hepa/providers/legacy_consumer"
-	_ "github.com/erda-project/erda/modules/hepa/providers/legacy_upstream"
-	_ "github.com/erda-project/erda/modules/hepa/providers/legacy_upstream_lb"
-	_ "github.com/erda-project/erda/modules/hepa/providers/micro_api"
-	_ "github.com/erda-project/erda/modules/hepa/providers/openapi_consumer"
-	_ "github.com/erda-project/erda/modules/hepa/providers/openapi_rule"
-	_ "github.com/erda-project/erda/modules/hepa/providers/org_client"
-	_ "github.com/erda-project/erda/modules/hepa/providers/runtime_service"
+	_ "github.com/erda-project/erda-infra/providers/grpcclient"
+	_ "github.com/erda-project/erda-proto-go/core/clustermanager/cluster/client"
+	_ "github.com/erda-project/erda-proto-go/core/org/client"
+	_ "github.com/erda-project/erda-proto-go/msp/tenant/client"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/api_policy"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/domain"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/endpoint_api"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/global"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/legacy_consumer"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/legacy_upstream"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/legacy_upstream_lb"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/micro_api"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/openapi_consumer"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/openapi_rule"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/org_client"
+	_ "github.com/erda-project/erda/internal/tools/orchestrator/hepa/providers/runtime_service"
 )
+
+//go:embed bootstrap.yaml
+var bootstrapCfg string
 
 func main() {
 	common.Run(&servicehub.RunOptions{
-		ConfigFile: "conf/hepa/hepa.yaml",
+		Content: bootstrapCfg,
 	})
 }

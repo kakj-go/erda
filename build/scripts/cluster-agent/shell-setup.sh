@@ -13,7 +13,7 @@ kind: Config
 clusters:
 - cluster:
     api-version: v1
-    server: "https://kubernetes:443"
+    server: "https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
     insecure-skip-tls-verify: true
   name: "Default"
 contexts:
@@ -28,7 +28,10 @@ users:
     token: "${TOKEN}"
 EOF
 
-unset TOKEN
+cat >> .bash_profile <<EOF
+PS1="\w > "
+EOF
+
 chmod 777 .kube
 chmod 666 .kube/config
-exec su -s /bin/bash nobody
+exec su - -s /bin/bash nobody

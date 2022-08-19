@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"strconv"
 
+	"google.golang.org/grpc/metadata"
+
 	"github.com/erda-project/erda-infra/pkg/transport"
 	"github.com/erda-project/erda-infra/providers/i18n"
 	"github.com/erda-project/erda-proto-go/common/pb"
@@ -26,6 +28,8 @@ import (
 
 const (
 	headerInternalClient = "internal-client"
+	headerUserID         = "user-id"
+	headerOrgID          = "org-id"
 )
 
 var langKeys = []string{"lang", "accept-language"}
@@ -95,8 +99,34 @@ func GetHeader(ctx context.Context, key string) string {
 	return ""
 }
 
+func GetContext(ctx context.Context, setHeader func(header *transport.Header)) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	header := transport.Header{}
+	header.Set("org", GetHeader(ctx, "org"))
+	if setHeader != nil {
+		setHeader(&header)
+	}
+	ctx = transport.WithHeader(ctx, header)
+	return ctx
+}
+
 func GetInternalClient(ctx context.Context) string {
-	return GetHeader(ctx, headerInternalClient)
+	if internalClient := GetHeader(ctx, headerInternalClient); internalClient != "" {
+		return internalClient
+	}
+	// if no internal-client found, try to get from outgoing context
+	// use for memory call
+	header, _ := metadata.FromOutgoingContext(ctx)
+	if header != nil {
+		for _, v := range header.Get(headerInternalClient) {
+			if len(v) > 0 {
+				return v
+			}
+		}
+	}
+	return ""
 }
 
 func IsInternalClient(ctx context.Context) bool {
